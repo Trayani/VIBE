@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
+using System.Collections.Generic;
 
 namespace GridDisplay
 {
@@ -333,6 +334,7 @@ namespace GridDisplay
             if (visibilityCone != null && visibilityCone.IsActive)
             {
                 DrawVisibilityCone(spriteBatch, pixelTexture);
+                DrawShadowEdges(spriteBatch, pixelTexture);
             }
             
             spriteBatch.End();
@@ -914,8 +916,204 @@ namespace GridDisplay
                     return false;
             }
             
-            // All corners are within the arc and radius
+            // Check line of sight to the cell center
+            Vector2 cellCenter = new Vector2(
+                cellX * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
+                cellY * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y
+            );
+            
+            // If there's no clear line of sight to the cell center, it's not visible
+            if (!HasLineOfSight(focusPoint, cellCenter))
+                return false;
+            
+            // All corners are within the arc and radius, and there's line of sight
             return true;
+        }
+        
+        private bool HasLineOfSight(Vector2 from, Vector2 to)
+        {
+            // Convert world coordinates to grid coordinates for line traversal
+            Vector2 fromGrid = new Vector2(
+                (from.X - cameraOffset.X) / grid.CellSizeX,
+                (from.Y - cameraOffset.Y) / grid.CellSizeY
+            );
+            Vector2 toGrid = new Vector2(
+                (to.X - cameraOffset.X) / grid.CellSizeX,
+                (to.Y - cameraOffset.Y) / grid.CellSizeY
+            );
+            
+            // Use DDA (Digital Differential Analyzer) algorithm to traverse the grid
+            float dx = Math.Abs(toGrid.X - fromGrid.X);
+            float dy = Math.Abs(toGrid.Y - fromGrid.Y);
+            
+            int x = (int)Math.Floor(fromGrid.X);
+            int y = (int)Math.Floor(fromGrid.Y);
+            
+            int stepX = fromGrid.X < toGrid.X ? 1 : -1;
+            int stepY = fromGrid.Y < toGrid.Y ? 1 : -1;
+            
+            float deltaX = dx == 0 ? float.MaxValue : 1.0f / dx;
+            float deltaY = dy == 0 ? float.MaxValue : 1.0f / dy;
+            
+            float nextX = dx == 0 ? float.MaxValue : deltaX * (stepX > 0 ? 1.0f - (fromGrid.X - (float)Math.Floor(fromGrid.X)) : fromGrid.X - (float)Math.Floor(fromGrid.X));
+            float nextY = dy == 0 ? float.MaxValue : deltaY * (stepY > 0 ? 1.0f - (fromGrid.Y - (float)Math.Floor(fromGrid.Y)) : fromGrid.Y - (float)Math.Floor(fromGrid.Y));
+            
+            int endX = (int)Math.Floor(toGrid.X);
+            int endY = (int)Math.Floor(toGrid.Y);
+            
+            // Skip the starting cell (focus point cell)
+            bool skipFirst = true;
+            
+            while (x != endX || y != endY)
+            {
+                // Check current cell for blocking (but skip the first one)
+                if (!skipFirst)
+                {
+                    GridCell cell = grid.GetCell(x, y);
+                    if (cell != null && cell.Blocked)
+                    {
+                        return false; // Line is blocked
+                    }
+                }
+                skipFirst = false;
+                
+                // Move to next cell
+                if (nextX < nextY)
+                {
+                    nextX += deltaX;
+                    x += stepX;
+                }
+                else
+                {
+                    nextY += deltaY;
+                    y += stepY;
+                }
+            }
+            
+            // Check the final cell (destination)
+            GridCell finalCell = grid.GetCell(endX, endY);
+            if (finalCell != null && finalCell.Blocked)
+            {
+                return false;
+            }
+            
+            return true; // Line of sight is clear
+        }
+        
+        private List<Vector2> GetBlockedCellsInCone()
+        {
+            List<Vector2> blockedCells = new List<Vector2>();
+            
+            if (visibilityCone == null || !visibilityCone.IsActive)
+                return blockedCells;
+            
+            // Get cone parameters
+            Vector2 focusPoint = visibilityCone.GetPoint(0, cameraOffset);
+            Vector2 leftPoint = visibilityCone.GetPoint(1, cameraOffset);
+            Vector2 rightPoint = visibilityCone.GetPoint(2, cameraOffset);
+            
+            float radiusToLeft = Vector2.Distance(focusPoint, leftPoint);
+            float radiusToRight = Vector2.Distance(focusPoint, rightPoint);
+            float maxRadius = Math.Max(radiusToLeft, radiusToRight);
+            
+            float leftAngle = (float)Math.Atan2(leftPoint.Y - focusPoint.Y, leftPoint.X - focusPoint.X);
+            float rightAngle = (float)Math.Atan2(rightPoint.Y - focusPoint.Y, rightPoint.X - focusPoint.X);
+            
+            if (rightAngle < leftAngle)
+                rightAngle += (float)(2 * Math.PI);
+            
+            // Check all cells in grid
+            for (int x = 0; x < grid.Width; x++)
+            {
+                for (int y = 0; y < grid.Height; y++)
+                {
+                    GridCell cell = grid.GetCell(x, y);
+                    if (cell != null && cell.Blocked)
+                    {
+                        // Get cell center
+                        Vector2 cellCenter = new Vector2(
+                            x * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
+                            y * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y
+                        );
+                        
+                        // Check if cell is within cone radius
+                        float distance = Vector2.Distance(focusPoint, cellCenter);
+                        if (distance > maxRadius)
+                            continue;
+                        
+                        // Check if cell is within cone angle
+                        float cellAngle = (float)Math.Atan2(cellCenter.Y - focusPoint.Y, cellCenter.X - focusPoint.X);
+                        if (cellAngle < leftAngle)
+                            cellAngle += (float)(2 * Math.PI);
+                        
+                        if (cellAngle >= leftAngle && cellAngle <= rightAngle)
+                        {
+                            // Check if there's line of sight from focus to this blocked cell
+                            if (HasLineOfSight(focusPoint, cellCenter))
+                            {
+                                blockedCells.Add(new Vector2(x, y));
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return blockedCells;
+        }
+        
+        private void DrawShadowEdges(SpriteBatch spriteBatch, Texture2D pixelTexture)
+        {
+            if (visibilityCone == null || !visibilityCone.IsActive)
+                return;
+            
+            Vector2 focusPoint = visibilityCone.GetPoint(0, cameraOffset);
+            Vector2 leftPoint = visibilityCone.GetPoint(1, cameraOffset);
+            Vector2 rightPoint = visibilityCone.GetPoint(2, cameraOffset);
+            
+            // Calculate cone parameters for filtering
+            float radiusToLeft = Vector2.Distance(focusPoint, leftPoint);
+            float radiusToRight = Vector2.Distance(focusPoint, rightPoint);
+            float maxRadius = Math.Max(radiusToLeft, radiusToRight);
+            
+            float leftAngle = (float)Math.Atan2(leftPoint.Y - focusPoint.Y, leftPoint.X - focusPoint.X);
+            float rightAngle = (float)Math.Atan2(rightPoint.Y - focusPoint.Y, rightPoint.X - focusPoint.X);
+            if (rightAngle < leftAngle) rightAngle += (float)(2 * Math.PI);
+            
+            Color shadowLineColor = Color.Orange; // Bright orange for visibility
+            
+            // Go back to working version but with arc filtering
+            for (int x = 0; x < grid.Width; x++)
+            {
+                for (int y = 0; y < grid.Height; y++)
+                {
+                    GridCell cell = grid.GetCell(x, y);
+                    if (cell != null && cell.Blocked)
+                    {
+                        // Get blocked cell center
+                        Vector2 cellCenter = new Vector2(
+                            x * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
+                            y * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y
+                        );
+                        
+                        // Filter: Check if cell is within cone radius
+                        float distToCell = Vector2.Distance(focusPoint, cellCenter);
+                        if (distToCell > maxRadius)
+                            continue;
+                        
+                        // Filter: Check if cell is within cone angle
+                        float cellAngle = (float)Math.Atan2(cellCenter.Y - focusPoint.Y, cellCenter.X - focusPoint.X);
+                        if (cellAngle < leftAngle) cellAngle += (float)(2 * Math.PI);
+                        if (cellAngle < leftAngle || cellAngle > rightAngle)
+                            continue;
+                        
+                        // This blocked cell is within the arc - draw simple shadow
+                        Vector2 direction = Vector2.Normalize(cellCenter - focusPoint);
+                        Vector2 shadowEnd = cellCenter + direction * 150; // Extend shadow beyond cell
+                        
+                        DrawLine(spriteBatch, pixelTexture, cellCenter, shadowEnd, shadowLineColor, 2);
+                    }
+                }
+            }
         }
         
         private void DrawControlsWindow(SpriteBatch spriteBatch, Texture2D pixelTexture)
