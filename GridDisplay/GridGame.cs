@@ -257,42 +257,305 @@ namespace GridDisplay
         
         private void DrawCharacter(SpriteBatch spriteBatch, Texture2D pixelTexture, char c, int x, int y, Color color)
         {
-            // Simple 5x7 bitmap characters - just draw basic rectangles for visibility
-            switch (char.ToUpper(c))
+            if (char.IsDigit(c))
             {
-                case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H':
-                case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': case 'O': case 'P':
-                case 'Q': case 'R': case 'S': case 'T': case 'U': case 'V': case 'W': case 'X':
-                case 'Y': case 'Z':
-                    // Draw a simple rectangle for letters
-                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y, 4, 7), color);
-                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y, 4, 1), color);
-                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y + 3, 4, 1), color);
-                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y + 6, 4, 1), color);
-                    break;
-                case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
-                    // Draw numbers with distinct patterns
-                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y, 4, 7), color);
-                    if (c != '1') spriteBatch.Draw(pixelTexture, new Rectangle(x, y, 4, 1), color);
-                    if (c != '1' && c != '7') spriteBatch.Draw(pixelTexture, new Rectangle(x, y + 6, 4, 1), color);
-                    break;
-                case '[': case ']': case '(': case ')':
-                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y, 2, 7), color);
-                    break;
-                case ',': case '.':
-                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y + 5, 2, 2), color);
-                    break;
+                DrawDigitChar(spriteBatch, pixelTexture, c - '0', x, y, color);
+                return;
+            }
+            
+            // 5x7 bitmap patterns for characters
+            bool[,] pattern = GetCharacterPattern(char.ToUpper(c));
+            
+            for (int row = 0; row < 7; row++)
+            {
+                for (int col = 0; col < 5; col++)
+                {
+                    if (pattern[row, col])
+                    {
+                        spriteBatch.Draw(pixelTexture, new Rectangle(x + col, y + row, 1, 1), color);
+                    }
+                }
+            }
+        }
+        
+        private void DrawDigitChar(SpriteBatch spriteBatch, Texture2D pixelTexture, int digit, int x, int y, Color color)
+        {
+            int w = 4;
+            int h = 7;
+            
+            bool[,] segments = new bool[,]
+            {
+                { true, true, true, false, true, true, true },      // 0
+                { false, false, true, false, false, true, false },  // 1
+                { true, false, true, true, true, false, true },     // 2
+                { true, false, true, true, false, true, true },     // 3
+                { false, true, true, true, false, true, false },    // 4
+                { true, true, false, true, false, true, true },     // 5
+                { true, true, false, true, true, true, true },      // 6
+                { true, false, true, false, false, true, false },   // 7
+                { true, true, true, true, true, true, true },       // 8
+                { true, true, true, true, false, true, true }       // 9
+            };
+            
+            // Top horizontal
+            if (segments[digit, 0])
+                spriteBatch.Draw(pixelTexture, new Rectangle(x, y, w, 1), color);
+            // Top-left vertical
+            if (segments[digit, 1])
+                spriteBatch.Draw(pixelTexture, new Rectangle(x, y, 1, h/2), color);
+            // Top-right vertical
+            if (segments[digit, 2])
+                spriteBatch.Draw(pixelTexture, new Rectangle(x + w - 1, y, 1, h/2), color);
+            // Middle horizontal
+            if (segments[digit, 3])
+                spriteBatch.Draw(pixelTexture, new Rectangle(x, y + h/2 - 1, w, 1), color);
+            // Bottom-left vertical
+            if (segments[digit, 4])
+                spriteBatch.Draw(pixelTexture, new Rectangle(x, y + h/2, 1, h/2), color);
+            // Bottom-right vertical
+            if (segments[digit, 5])
+                spriteBatch.Draw(pixelTexture, new Rectangle(x + w - 1, y + h/2, 1, h/2), color);
+            // Bottom horizontal
+            if (segments[digit, 6])
+                spriteBatch.Draw(pixelTexture, new Rectangle(x, y + h - 1, w, 1), color);
+        }
+        
+        private bool[,] GetCharacterPattern(char c)
+        {
+            // 5x7 bitmap font patterns
+            switch (c)
+            {
+                case 'A':
+                    return new bool[,] {
+                        {false,true,true,true,false},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,true,true,true,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true}
+                    };
+                case 'B':
+                    return new bool[,] {
+                        {true,true,true,true,false},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,true,true,true,false},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,true,true,true,false}
+                    };
+                case 'C':
+                    return new bool[,] {
+                        {false,true,true,true,false},
+                        {true,false,false,false,true},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false},
+                        {true,false,false,false,true},
+                        {false,true,true,true,false}
+                    };
+                case 'E':
+                    return new bool[,] {
+                        {true,true,true,true,true},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false},
+                        {true,true,true,true,false},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false},
+                        {true,true,true,true,true}
+                    };
+                case 'F':
+                    return new bool[,] {
+                        {true,true,true,true,true},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false},
+                        {true,true,true,true,false},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false}
+                    };
+                case 'G':
+                    return new bool[,] {
+                        {false,true,true,true,false},
+                        {true,false,false,false,true},
+                        {true,false,false,false,false},
+                        {true,false,true,true,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {false,true,true,true,false}
+                    };
+                case 'H':
+                    return new bool[,] {
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,true,true,true,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true}
+                    };
+                case 'I':
+                    return new bool[,] {
+                        {true,true,true,true,true},
+                        {false,false,true,false,false},
+                        {false,false,true,false,false},
+                        {false,false,true,false,false},
+                        {false,false,true,false,false},
+                        {false,false,true,false,false},
+                        {true,true,true,true,true}
+                    };
+                case 'L':
+                    return new bool[,] {
+                        {true,false,false,false,false},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false},
+                        {true,true,true,true,true}
+                    };
+                case 'N':
+                    return new bool[,] {
+                        {true,false,false,false,true},
+                        {true,true,false,false,true},
+                        {true,false,true,false,true},
+                        {true,false,false,true,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true}
+                    };
+                case 'O':
+                    return new bool[,] {
+                        {false,true,true,true,false},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {false,true,true,true,false}
+                    };
+                case 'P':
+                    return new bool[,] {
+                        {true,true,true,true,false},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,true,true,true,false},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false},
+                        {true,false,false,false,false}
+                    };
+                case 'R':
+                    return new bool[,] {
+                        {true,true,true,true,false},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,true,true,true,false},
+                        {true,false,true,false,false},
+                        {true,false,false,true,false},
+                        {true,false,false,false,true}
+                    };
+                case 'S':
+                    return new bool[,] {
+                        {false,true,true,true,false},
+                        {true,false,false,false,true},
+                        {true,false,false,false,false},
+                        {false,true,true,true,false},
+                        {false,false,false,false,true},
+                        {true,false,false,false,true},
+                        {false,true,true,true,false}
+                    };
+                case 'T':
+                    return new bool[,] {
+                        {true,true,true,true,true},
+                        {false,false,true,false,false},
+                        {false,false,true,false,false},
+                        {false,false,true,false,false},
+                        {false,false,true,false,false},
+                        {false,false,true,false,false},
+                        {false,false,true,false,false}
+                    };
+                case 'V':
+                    return new bool[,] {
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {false,true,false,true,false},
+                        {false,true,false,true,false},
+                        {false,false,true,false,false}
+                    };
+                case 'Y':
+                    return new bool[,] {
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {false,true,false,true,false},
+                        {false,false,true,false,false},
+                        {false,false,true,false,false},
+                        {false,false,true,false,false},
+                        {false,false,true,false,false}
+                    };
                 case ':':
-                    spriteBatch.Draw(pixelTexture, new Rectangle(x + 1, y + 2, 1, 1), color);
-                    spriteBatch.Draw(pixelTexture, new Rectangle(x + 1, y + 4, 1, 1), color);
-                    break;
+                    return new bool[,] {
+                        {false,false,false,false,false},
+                        {false,false,true,false,false},
+                        {false,false,false,false,false},
+                        {false,false,false,false,false},
+                        {false,false,false,false,false},
+                        {false,false,true,false,false},
+                        {false,false,false,false,false}
+                    };
+                case '[':
+                    return new bool[,] {
+                        {false,true,true,false,false},
+                        {false,true,false,false,false},
+                        {false,true,false,false,false},
+                        {false,true,false,false,false},
+                        {false,true,false,false,false},
+                        {false,true,false,false,false},
+                        {false,true,true,false,false}
+                    };
+                case ']':
+                    return new bool[,] {
+                        {false,false,true,true,false},
+                        {false,false,false,true,false},
+                        {false,false,false,true,false},
+                        {false,false,false,true,false},
+                        {false,false,false,true,false},
+                        {false,false,false,true,false},
+                        {false,false,true,true,false}
+                    };
+                case ',':
+                    return new bool[,] {
+                        {false,false,false,false,false},
+                        {false,false,false,false,false},
+                        {false,false,false,false,false},
+                        {false,false,false,false,false},
+                        {false,false,false,false,false},
+                        {false,false,true,false,false},
+                        {false,true,false,false,false}
+                    };
                 case '-':
-                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y + 3, 4, 1), color);
-                    break;
+                    return new bool[,] {
+                        {false,false,false,false,false},
+                        {false,false,false,false,false},
+                        {false,false,false,false,false},
+                        {true,true,true,true,true},
+                        {false,false,false,false,false},
+                        {false,false,false,false,false},
+                        {false,false,false,false,false}
+                    };
                 default:
-                    // Default character (small rectangle)
-                    spriteBatch.Draw(pixelTexture, new Rectangle(x + 1, y + 2, 2, 3), color);
-                    break;
+                    // Default pattern for unknown characters
+                    return new bool[,] {
+                        {true,true,true,true,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,false,false,false,true},
+                        {true,true,true,true,true}
+                    };
             }
         }
     }
