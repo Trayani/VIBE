@@ -17,6 +17,11 @@ namespace GridDisplay
         private int selectedY = -1;
         private int startCellX = 0;
         private int startCellY = 0;
+        private int targetCellX = -1;
+        private int targetCellY = -1;
+        private VisibilityCone visibilityCone;
+        private bool isDragging = false;
+        private int draggedPointIndex = -1;
 
         public GridGame()
         {
@@ -119,6 +124,68 @@ namespace GridDisplay
                 }
             }
             
+            // Set target cell with T key (for line drawing)
+            if (keyboardState.IsKeyDown(Keys.T) && !previousKeyboardState.IsKeyDown(Keys.T))
+            {
+                if (selectedX >= 0 && selectedY >= 0)
+                {
+                    targetCellX = selectedX;
+                    targetCellY = selectedY;
+                }
+            }
+            
+            // Spawn visibility cone with V key
+            if (keyboardState.IsKeyDown(Keys.V) && !previousKeyboardState.IsKeyDown(Keys.V))
+            {
+                if (visibilityCone == null)
+                {
+                    // Create cone at center of screen
+                    Vector2 centerScreen = new Vector2(GraphicsDevice.Viewport.Width / 2, GraphicsDevice.Viewport.Height / 2);
+                    Vector2 focus = new VisibilityCone().SnapToGrid(centerScreen, cameraOffset, grid.CellSizeX, grid.CellSizeY);
+                    Vector2 leftBorder = new VisibilityCone().SnapToGrid(centerScreen + new Vector2(-100, -50), cameraOffset, grid.CellSizeX, grid.CellSizeY);
+                    Vector2 rightBorder = new VisibilityCone().SnapToGrid(centerScreen + new Vector2(100, -50), cameraOffset, grid.CellSizeX, grid.CellSizeY);
+                    
+                    visibilityCone = new VisibilityCone(focus, leftBorder, rightBorder);
+                }
+                else
+                {
+                    // Toggle off
+                    visibilityCone = null;
+                    isDragging = false;
+                    draggedPointIndex = -1;
+                }
+            }
+            
+            // Handle cone point dragging
+            if (visibilityCone != null && visibilityCone.IsActive)
+            {
+                Vector2 mousePosition = new Vector2(mouseState.X, mouseState.Y);
+                
+                if (mouseState.LeftButton == ButtonState.Pressed && previousMouseState.LeftButton == ButtonState.Released)
+                {
+                    // Start dragging if near a cone point
+                    int closestPoint = visibilityCone.GetClosestPoint(mousePosition, cameraOffset);
+                    if (closestPoint >= 0)
+                    {
+                        isDragging = true;
+                        draggedPointIndex = closestPoint;
+                    }
+                }
+                
+                if (isDragging && mouseState.LeftButton == ButtonState.Pressed)
+                {
+                    // Update dragged point position with snapping
+                    Vector2 snappedPos = visibilityCone.SnapToGrid(mousePosition, cameraOffset, grid.CellSizeX, grid.CellSizeY);
+                    visibilityCone.SetPoint(draggedPointIndex, snappedPos);
+                }
+                
+                if (mouseState.LeftButton == ButtonState.Released)
+                {
+                    isDragging = false;
+                    draggedPointIndex = -1;
+                }
+            }
+            
             previousMouseState = mouseState;
             previousKeyboardState = keyboardState;
             
@@ -140,17 +207,27 @@ namespace GridDisplay
                 new Rectangle((int)startPos.X, (int)startPos.Y, grid.CellSizeX + 3, grid.CellSizeY + 3),
                 Color.Lime * 0.6f);
             
-            // Draw line from start cell to mouse cell
-            if (selectedX >= 0 && selectedY >= 0)
+            // Draw line from start cell to target cell (only when target is set)
+            if (targetCellX >= 0 && targetCellY >= 0)
             {
                 Vector2 startCenter = new Vector2(startCellX * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
                                                  startCellY * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y);
-                Vector2 mouseCenter = new Vector2(selectedX * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
-                                                 selectedY * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y);
+                Vector2 targetCenter = new Vector2(targetCellX * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
+                                                  targetCellY * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y);
                 
-                DrawLine(spriteBatch, pixelTexture, startCenter, mouseCenter, Color.Black, 4);
+                DrawLine(spriteBatch, pixelTexture, startCenter, targetCenter, Color.Black, 4);
                 
-                // Draw selection highlight
+                // Draw target cell highlight
+                Vector2 targetPosition = new Vector2(targetCellX * grid.CellSizeX + cameraOffset.X - 2, 
+                                                    targetCellY * grid.CellSizeY + cameraOffset.Y - 2);
+                spriteBatch.Draw(pixelTexture, 
+                    new Rectangle((int)targetPosition.X, (int)targetPosition.Y, grid.CellSizeX + 3, grid.CellSizeY + 3), 
+                    Color.Blue * 0.5f);
+            }
+            
+            // Draw mouse selection highlight
+            if (selectedX >= 0 && selectedY >= 0)
+            {
                 Vector2 position = new Vector2(selectedX * grid.CellSizeX + cameraOffset.X - 2, 
                                               selectedY * grid.CellSizeY + cameraOffset.Y - 2);
                 spriteBatch.Draw(pixelTexture, 
@@ -164,6 +241,12 @@ namespace GridDisplay
             
             // Draw controls window
             DrawControlsWindow(spriteBatch, pixelTexture);
+            
+            // Draw visibility cone
+            if (visibilityCone != null && visibilityCone.IsActive)
+            {
+                DrawVisibilityCone(spriteBatch, pixelTexture);
+            }
             
             spriteBatch.End();
             
@@ -564,6 +647,57 @@ namespace GridDisplay
             }
         }
         
+        private void DrawVisibilityCone(SpriteBatch spriteBatch, Texture2D pixelTexture)
+        {
+            // Dark purple color
+            Color darkPurple = new Color(75, 0, 130); // Dark purple RGB
+            Color lightPurple = new Color(138, 43, 226); // Lighter purple for hover
+            
+            // Draw lines from focus point to border points
+            DrawLine(spriteBatch, pixelTexture, visibilityCone.FocusPoint, visibilityCone.LeftBorderPoint, darkPurple, 3);
+            DrawLine(spriteBatch, pixelTexture, visibilityCone.FocusPoint, visibilityCone.RightBorderPoint, darkPurple, 3);
+            
+            // Check for hover on points
+            Vector2 mousePosition = new Vector2(Mouse.GetState().X, Mouse.GetState().Y);
+            int hoveredPoint = visibilityCone.GetClosestPoint(mousePosition, cameraOffset, 15f);
+            
+            // Draw the three circular points
+            int pointRadius = 4;
+            
+            for (int i = 0; i < 3; i++)
+            {
+                Vector2 point = visibilityCone.GetPoint(i);
+                Color pointColor = darkPurple;
+                int currentRadius = pointRadius;
+                
+                // Highlight if hovered or being dragged
+                if (i == hoveredPoint || (isDragging && i == draggedPointIndex))
+                {
+                    pointColor = lightPurple;
+                    currentRadius = pointRadius + 2; // Make it slightly larger
+                }
+                
+                DrawCircle(spriteBatch, pixelTexture, point, currentRadius, pointColor);
+            }
+        }
+        
+        private void DrawCircle(SpriteBatch spriteBatch, Texture2D pixelTexture, Vector2 center, int radius, Color color)
+        {
+            // Draw a filled circle using rectangles
+            for (int x = -radius; x <= radius; x++)
+            {
+                for (int y = -radius; y <= radius; y++)
+                {
+                    if (x * x + y * y <= radius * radius)
+                    {
+                        spriteBatch.Draw(pixelTexture, 
+                            new Rectangle((int)center.X + x, (int)center.Y + y, 1, 1), 
+                            color);
+                    }
+                }
+            }
+        }
+        
         private void DrawControlsWindow(SpriteBatch spriteBatch, Texture2D pixelTexture)
         {
             // Position window under the cell info window
@@ -613,6 +747,10 @@ namespace GridDisplay
             yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "S - Set Start Cell", windowX + 10, yPos, Color.Lime);
             yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "T - Set Target Cell", windowX + 10, yPos, Color.Blue);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "V - Toggle Visibility Cone", windowX + 10, yPos, new Color(75, 0, 130));
+            yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "Arrow Keys - Move Camera", windowX + 10, yPos, Color.White);
             yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "R - Reset Grid", windowX + 10, yPos, Color.White);
@@ -629,7 +767,11 @@ namespace GridDisplay
             yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "Green - Start Cell", windowX + 10, yPos, Color.Lime);
             yPos += lineHeight;
-            DrawPixelText(spriteBatch, pixelTexture, "Black Line - Path to Mouse", windowX + 10, yPos, Color.White);
+            DrawPixelText(spriteBatch, pixelTexture, "Blue - Target Cell", windowX + 10, yPos, Color.Blue);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "Black Line - Start to Target", windowX + 10, yPos, Color.White);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "Purple Cone - Visibility", windowX + 10, yPos, new Color(75, 0, 130));
         }
     }
 }
