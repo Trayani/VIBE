@@ -22,6 +22,10 @@ namespace GridDisplay
         private VisibilityCone visibilityCone;
         private bool isDragging = false;
         private int draggedPointIndex = -1;
+        private float zoomLevel = 1.0f;
+        private const float minZoom = 0.25f;
+        private const float maxZoom = 4.0f;
+        private const float zoomStep = 0.1f;
 
         public GridGame()
         {
@@ -59,17 +63,68 @@ namespace GridDisplay
             if (keyboardState.IsKeyDown(Keys.Escape))
                 Exit();
             
-            if (keyboardState.IsKeyDown(Keys.Left))
-                cameraOffset.X += 5;
-            if (keyboardState.IsKeyDown(Keys.Right))
-                cameraOffset.X -= 5;
-            if (keyboardState.IsKeyDown(Keys.Up))
-                cameraOffset.Y += 5;
-            if (keyboardState.IsKeyDown(Keys.Down))
-                cameraOffset.Y -= 5;
+            // Handle scroll wheel input
+            int scrollDelta = mouseState.ScrollWheelValue - previousMouseState.ScrollWheelValue;
+            if (scrollDelta != 0)
+            {
+                if (keyboardState.IsKeyDown(Keys.LeftControl) || keyboardState.IsKeyDown(Keys.RightControl))
+                {
+                    // CTRL+Scroll = Zoom
+                    float zoomChange = (scrollDelta > 0) ? zoomStep : -zoomStep;
+                    float newZoom = MathHelper.Clamp(zoomLevel + zoomChange, minZoom, maxZoom);
+                    
+                    // Get mouse cell center for zoom target
+                    Vector2 zoomMouseWorldPos = ScreenToWorld(new Vector2(mouseState.X, mouseState.Y));
+                    int mouseGridX = (int)((zoomMouseWorldPos.X - cameraOffset.X) / grid.CellSizeX);
+                    int mouseGridY = (int)((zoomMouseWorldPos.Y - cameraOffset.Y) / grid.CellSizeY);
+                    
+                    // Clamp to valid grid bounds
+                    mouseGridX = MathHelper.Clamp(mouseGridX, 0, grid.Width - 1);
+                    mouseGridY = MathHelper.Clamp(mouseGridY, 0, grid.Height - 1);
+                    
+                    // Use cell center as zoom target
+                    Vector2 cellCenter = new Vector2(
+                        mouseGridX * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
+                        mouseGridY * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y);
+                    
+                    Vector2 screenCellCenter = WorldToScreen(cellCenter);
+                    Vector2 worldCellCenter = ScreenToWorld(screenCellCenter);
+                    
+                    zoomLevel = newZoom;
+                    
+                    // Adjust camera to keep cell center consistent
+                    Vector2 newWorldCellCenter = ScreenToWorld(screenCellCenter);
+                    Vector2 difference = worldCellCenter - newWorldCellCenter;
+                    cameraOffset += difference;
+                }
+                else if (keyboardState.IsKeyDown(Keys.LeftShift) || keyboardState.IsKeyDown(Keys.RightShift))
+                {
+                    // SHIFT+Scroll = Vertical movement
+                    float scrollSpeed = 30.0f / zoomLevel;
+                    cameraOffset.Y += (scrollDelta > 0) ? scrollSpeed : -scrollSpeed;
+                }
+                else
+                {
+                    // Regular Scroll = Horizontal movement
+                    float scrollSpeed = 30.0f / zoomLevel;
+                    cameraOffset.X += (scrollDelta > 0) ? -scrollSpeed : scrollSpeed;
+                }
+            }
             
-            int gridX = (int)((mouseState.X - cameraOffset.X) / grid.CellSizeX);
-            int gridY = (int)((mouseState.Y - cameraOffset.Y) / grid.CellSizeY);
+            // Camera movement (scaled by zoom for consistent feel)
+            float moveSpeed = 5.0f / zoomLevel;
+            if (keyboardState.IsKeyDown(Keys.Left))
+                cameraOffset.X += moveSpeed;
+            if (keyboardState.IsKeyDown(Keys.Right))
+                cameraOffset.X -= moveSpeed;
+            if (keyboardState.IsKeyDown(Keys.Up))
+                cameraOffset.Y += moveSpeed;
+            if (keyboardState.IsKeyDown(Keys.Down))
+                cameraOffset.Y -= moveSpeed;
+            
+            Vector2 mouseWorldPos = ScreenToWorld(new Vector2(mouseState.X, mouseState.Y));
+            int gridX = (int)((mouseWorldPos.X - cameraOffset.X) / grid.CellSizeX);
+            int gridY = (int)((mouseWorldPos.Y - cameraOffset.Y) / grid.CellSizeY);
             
             if (gridX >= 0 && gridX < grid.Width && gridY >= 0 && gridY < grid.Height)
             {
@@ -159,7 +214,7 @@ namespace GridDisplay
             // Handle cone point dragging
             if (visibilityCone != null && visibilityCone.IsActive)
             {
-                Vector2 mousePosition = new Vector2(mouseState.X, mouseState.Y);
+                Vector2 mousePosition = ScreenToWorld(new Vector2(mouseState.X, mouseState.Y));
                 
                 if (mouseState.LeftButton == ButtonState.Pressed && previousMouseState.LeftButton == ButtonState.Released)
                 {
@@ -196,7 +251,9 @@ namespace GridDisplay
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
             
-            spriteBatch.Begin();
+            // Apply zoom transformation
+            Matrix transformMatrix = Matrix.CreateScale(zoomLevel) * Matrix.CreateTranslation(0, 0, 0);
+            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, null, null, null, null, transformMatrix);
             
             grid.Draw(spriteBatch, pixelTexture, cameraOffset);
             
@@ -235,18 +292,22 @@ namespace GridDisplay
                     Color.Red * 0.5f);
             }
             
+            // Draw visibility cone
+            if (visibilityCone != null && visibilityCone.IsActive)
+            {
+                DrawVisibilityCone(spriteBatch, pixelTexture);
+            }
+            
+            spriteBatch.End();
+            
+            // Draw UI elements without zoom transformation
+            spriteBatch.Begin();
             
             // Draw cell info window
             DrawCellInfoWindow(spriteBatch, pixelTexture);
             
             // Draw controls window
             DrawControlsWindow(spriteBatch, pixelTexture);
-            
-            // Draw visibility cone
-            if (visibilityCone != null && visibilityCone.IsActive)
-            {
-                DrawVisibilityCone(spriteBatch, pixelTexture);
-            }
             
             spriteBatch.End();
             
@@ -657,9 +718,9 @@ namespace GridDisplay
             DrawLine(spriteBatch, pixelTexture, visibilityCone.FocusPoint, visibilityCone.LeftBorderPoint, darkPurple, 3);
             DrawLine(spriteBatch, pixelTexture, visibilityCone.FocusPoint, visibilityCone.RightBorderPoint, darkPurple, 3);
             
-            // Check for hover on points
-            Vector2 mousePosition = new Vector2(Mouse.GetState().X, Mouse.GetState().Y);
-            int hoveredPoint = visibilityCone.GetClosestPoint(mousePosition, cameraOffset, 15f);
+            // Check for hover on points (convert mouse to world coordinates)
+            Vector2 mousePosition = ScreenToWorld(new Vector2(Mouse.GetState().X, Mouse.GetState().Y));
+            int hoveredPoint = visibilityCone.GetClosestPoint(mousePosition, cameraOffset, 15f / zoomLevel);
             
             // Draw the three circular points
             int pointRadius = 4;
@@ -704,7 +765,7 @@ namespace GridDisplay
             int windowX = 1330;
             int windowY = 190; // Cell info window is at y=50 with height=120, so 50+120+20 = 190
             int windowWidth = 250;
-            int windowHeight = 240;
+            int windowHeight = 270;
             
             // Window background
             spriteBatch.Draw(pixelTexture, 
@@ -753,6 +814,12 @@ namespace GridDisplay
             yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "Arrow Keys - Move Camera", windowX + 10, yPos, Color.White);
             yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "Scroll - Move Horizontal", windowX + 10, yPos, Color.White);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "SHIFT+Scroll - Move Vertical", windowX + 10, yPos, Color.White);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "CTRL+Scroll - Zoom", windowX + 10, yPos, Color.White);
+            yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "R - Reset Grid", windowX + 10, yPos, Color.White);
             yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "ESC - Exit", windowX + 10, yPos, Color.White);
@@ -772,6 +839,16 @@ namespace GridDisplay
             DrawPixelText(spriteBatch, pixelTexture, "Black Line - Start to Target", windowX + 10, yPos, Color.White);
             yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "Purple Cone - Visibility", windowX + 10, yPos, new Color(75, 0, 130));
+        }
+        
+        private Vector2 ScreenToWorld(Vector2 screenPosition)
+        {
+            return screenPosition / zoomLevel;
+        }
+        
+        private Vector2 WorldToScreen(Vector2 worldPosition)
+        {
+            return worldPosition * zoomLevel;
         }
     }
 }
