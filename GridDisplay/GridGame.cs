@@ -148,7 +148,7 @@ namespace GridDisplay
                 Vector2 mouseCenter = new Vector2(selectedX * grid.CellSize + grid.CellSize / 2 + cameraOffset.X,
                                                  selectedY * grid.CellSize + grid.CellSize / 2 + cameraOffset.Y);
                 
-                DrawLine(spriteBatch, pixelTexture, startCenter, mouseCenter, Color.Cyan, 4);
+                DrawLine(spriteBatch, pixelTexture, startCenter, mouseCenter, Color.Black, 4);
                 
                 // Draw selection highlight
                 Vector2 position = new Vector2(selectedX * grid.CellSize + cameraOffset.X - 2, 

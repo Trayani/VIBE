@@ -67,16 +67,10 @@ namespace GridDisplay
                         new Rectangle((int)position.X, (int)position.Y, CellSize, CellSize), 
                         cellColor);
                     
-                    if (cell.Blocked)
-                    {
-                        spriteBatch.Draw(pixelTexture,
-                            new Rectangle((int)position.X + 2, (int)position.Y + 2, CellSize - 5, CellSize - 5),
-                            Color.Black);
-                    }
                     
-                    DrawNumber(spriteBatch, pixelTexture, cell.Height, position + new Vector2(2, 2), Color.White, 8);
+                    DrawNumber(spriteBatch, pixelTexture, cell.Height, position + new Vector2(2, 2), Color.Black, 8);
                     
-                    DrawNumber(spriteBatch, pixelTexture, cell.Alignment, position + new Vector2(2, CellSize - 10), Color.Yellow, 8);
+                    DrawNumber(spriteBatch, pixelTexture, cell.Alignment, position + new Vector2(2, CellSize - 10), Color.Black, 8);
                 }
             }
             
@@ -101,11 +95,12 @@ namespace GridDisplay
         private Color GetCellColor(GridCell cell)
         {
             if (cell.Blocked)
-                return Color.DarkGray;
+                return Color.Red;
             
-            float heightNormalized = cell.Height / 10f;
-            byte green = (byte)(100 + heightNormalized * 155);
-            return new Color(50, green, 50);
+            // Height affects cyan scale (0 = white, 9 = full cyan)
+            float heightNormalized = cell.Height / 9f;
+            byte redValue = (byte)(255 - heightNormalized * 255);
+            return new Color(redValue, 255, 255);
         }
         
         private void DrawNumber(SpriteBatch spriteBatch, Texture2D pixelTexture, int number, Vector2 position, Color color, int size)
