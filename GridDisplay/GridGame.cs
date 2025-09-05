@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
 
 namespace GridDisplay
 {
@@ -759,6 +760,9 @@ namespace GridDisplay
             DrawLine(spriteBatch, pixelTexture, focusPoint, leftBorderPoint, darkPurple, 3);
             DrawLine(spriteBatch, pixelTexture, focusPoint, rightBorderPoint, darkPurple, 3);
             
+            // Draw arc from left border point to right border point around focus point
+            DrawArc(spriteBatch, pixelTexture, focusPoint, leftBorderPoint, rightBorderPoint, darkPurple, 2);
+            
             // Check for hover on points (convert mouse to world coordinates)
             Vector2 mousePosition = ScreenToWorld(new Vector2(Mouse.GetState().X, Mouse.GetState().Y));
             int hoveredPoint = visibilityCone.GetClosestPoint(mousePosition, cameraOffset, 15f / zoomLevel);
@@ -797,6 +801,53 @@ namespace GridDisplay
                             color);
                     }
                 }
+            }
+        }
+        
+        private void DrawArc(SpriteBatch spriteBatch, Texture2D pixelTexture, Vector2 center, Vector2 startPoint, Vector2 endPoint, Color color, int thickness)
+        {
+            // Calculate distances from center to both points and use the maximum as radius
+            float radiusToStart = Vector2.Distance(center, startPoint);
+            float radiusToEnd = Vector2.Distance(center, endPoint);
+            float radius = Math.Max(radiusToStart, radiusToEnd);
+            
+            // Calculate angles for start and end points
+            float startAngle = (float)Math.Atan2(startPoint.Y - center.Y, startPoint.X - center.X);
+            float endAngle = (float)Math.Atan2(endPoint.Y - center.Y, endPoint.X - center.X);
+            
+            // Always go from left to right (counter-clockwise direction)
+            // Normalize to ensure we go the correct direction
+            if (endAngle < startAngle)
+            {
+                endAngle += (float)(2 * Math.PI);
+            }
+            
+            float angleDiff = endAngle - startAngle;
+            
+            // Draw the arc with small angle increments
+            float angleStep = 0.02f; // Small step for smooth arc
+            int steps = (int)(angleDiff / angleStep);
+            
+            if (steps < 2) return; // Too small to draw
+            
+            Vector2 prevPoint = center + new Vector2(
+                (float)(Math.Cos(startAngle) * radius),
+                (float)(Math.Sin(startAngle) * radius)
+            );
+            
+            for (int i = 1; i <= steps; i++)
+            {
+                float t = (float)i / steps;
+                float currentAngle = startAngle + angleDiff * t;
+                
+                Vector2 currentPoint = center + new Vector2(
+                    (float)(Math.Cos(currentAngle) * radius),
+                    (float)(Math.Sin(currentAngle) * radius)
+                );
+                
+                // Draw line segment with specified thickness
+                DrawLine(spriteBatch, pixelTexture, prevPoint, currentPoint, color, thickness);
+                prevPoint = currentPoint;
             }
         }
         
