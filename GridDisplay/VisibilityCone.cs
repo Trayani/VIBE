@@ -4,45 +4,50 @@ namespace GridDisplay
 {
     public class VisibilityCone
     {
-        public Vector2 FocusPoint { get; set; }
-        public Vector2 LeftBorderPoint { get; set; }
-        public Vector2 RightBorderPoint { get; set; }
+        // Store points relative to grid origin (without camera offset)
+        public Vector2 FocusPointRelative { get; set; }
+        public Vector2 LeftBorderPointRelative { get; set; }
+        public Vector2 RightBorderPointRelative { get; set; }
         public bool IsActive { get; set; }
 
         public VisibilityCone()
         {
             IsActive = false;
-            FocusPoint = Vector2.Zero;
-            LeftBorderPoint = Vector2.Zero;
-            RightBorderPoint = Vector2.Zero;
+            FocusPointRelative = Vector2.Zero;
+            LeftBorderPointRelative = Vector2.Zero;
+            RightBorderPointRelative = Vector2.Zero;
         }
 
-        public VisibilityCone(Vector2 focus, Vector2 leftBorder, Vector2 rightBorder)
+        public VisibilityCone(Vector2 focus, Vector2 leftBorder, Vector2 rightBorder, Vector2 cameraOffset)
         {
-            FocusPoint = focus;
-            LeftBorderPoint = leftBorder;
-            RightBorderPoint = rightBorder;
+            // Convert world coordinates to grid-relative coordinates
+            FocusPointRelative = focus - cameraOffset;
+            LeftBorderPointRelative = leftBorder - cameraOffset;
+            RightBorderPointRelative = rightBorder - cameraOffset;
             IsActive = true;
         }
 
-        public Vector2 GetPoint(int index)
+        public Vector2 GetPoint(int index, Vector2 cameraOffset)
         {
+            // Convert grid-relative coordinates to world coordinates
             switch (index)
             {
-                case 0: return FocusPoint;
-                case 1: return LeftBorderPoint;
-                case 2: return RightBorderPoint;
+                case 0: return FocusPointRelative + cameraOffset;
+                case 1: return LeftBorderPointRelative + cameraOffset;
+                case 2: return RightBorderPointRelative + cameraOffset;
                 default: return Vector2.Zero;
             }
         }
 
-        public void SetPoint(int index, Vector2 position)
+        public void SetPoint(int index, Vector2 worldPosition, Vector2 cameraOffset)
         {
+            // Convert world coordinates to grid-relative coordinates
+            Vector2 relativePosition = worldPosition - cameraOffset;
             switch (index)
             {
-                case 0: FocusPoint = position; break;
-                case 1: LeftBorderPoint = position; break;
-                case 2: RightBorderPoint = position; break;
+                case 0: FocusPointRelative = relativePosition; break;
+                case 1: LeftBorderPointRelative = relativePosition; break;
+                case 2: RightBorderPointRelative = relativePosition; break;
             }
         }
 
@@ -99,7 +104,7 @@ namespace GridDisplay
 
             for (int i = 0; i < 3; i++)
             {
-                Vector2 point = GetPoint(i);
+                Vector2 point = GetPoint(i, cameraOffset);
                 float distance = Vector2.Distance(worldPosition, point);
                 
                 if (distance < minDistance && distance <= maxDistance)

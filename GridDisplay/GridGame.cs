@@ -22,6 +22,8 @@ namespace GridDisplay
         private VisibilityCone visibilityCone;
         private bool isDragging = false;
         private int draggedPointIndex = -1;
+        private bool isCameraDragging = false;
+        private Vector2 lastCameraDragPosition;
         private float zoomLevel = 1.0f;
         private const float minZoom = 0.25f;
         private const float maxZoom = 4.0f;
@@ -99,15 +101,15 @@ namespace GridDisplay
                 }
                 else if (keyboardState.IsKeyDown(Keys.LeftShift) || keyboardState.IsKeyDown(Keys.RightShift))
                 {
-                    // SHIFT+Scroll = Vertical movement
+                    // SHIFT+Scroll = Horizontal movement
                     float scrollSpeed = 30.0f / zoomLevel;
-                    cameraOffset.Y += (scrollDelta > 0) ? scrollSpeed : -scrollSpeed;
+                    cameraOffset.X += (scrollDelta > 0) ? -scrollSpeed : scrollSpeed;
                 }
                 else
                 {
-                    // Regular Scroll = Horizontal movement
+                    // Regular Scroll = Vertical movement
                     float scrollSpeed = 30.0f / zoomLevel;
-                    cameraOffset.X += (scrollDelta > 0) ? -scrollSpeed : scrollSpeed;
+                    cameraOffset.Y += (scrollDelta > 0) ? scrollSpeed : -scrollSpeed;
                 }
             }
             
@@ -122,6 +124,36 @@ namespace GridDisplay
             if (keyboardState.IsKeyDown(Keys.Down))
                 cameraOffset.Y -= moveSpeed;
             
+            // Handle camera dragging with mouse + key
+            if (keyboardState.IsKeyDown(Keys.Space)) // Use Space key for camera dragging
+            {
+                if (mouseState.LeftButton == ButtonState.Pressed)
+                {
+                    if (!isCameraDragging)
+                    {
+                        // Start camera dragging
+                        isCameraDragging = true;
+                        lastCameraDragPosition = new Vector2(mouseState.X, mouseState.Y);
+                    }
+                    else
+                    {
+                        // Continue camera dragging
+                        Vector2 currentMousePos = new Vector2(mouseState.X, mouseState.Y);
+                        Vector2 dragDelta = (currentMousePos - lastCameraDragPosition) / zoomLevel;
+                        cameraOffset += dragDelta;
+                        lastCameraDragPosition = currentMousePos;
+                    }
+                }
+                else
+                {
+                    isCameraDragging = false;
+                }
+            }
+            else
+            {
+                isCameraDragging = false;
+            }
+            
             Vector2 mouseWorldPos = ScreenToWorld(new Vector2(mouseState.X, mouseState.Y));
             int gridX = (int)((mouseWorldPos.X - cameraOffset.X) / grid.CellSizeX);
             int gridY = (int)((mouseWorldPos.Y - cameraOffset.Y) / grid.CellSizeY);
@@ -131,30 +163,34 @@ namespace GridDisplay
                 selectedX = gridX;
                 selectedY = gridY;
                 
-                if (mouseState.LeftButton == ButtonState.Pressed && previousMouseState.LeftButton == ButtonState.Released)
+                // Only allow cell interactions when not camera dragging
+                if (!isCameraDragging)
                 {
-                    GridCell cell = grid.GetCell(gridX, gridY);
-                    if (cell != null)
+                    if (mouseState.LeftButton == ButtonState.Pressed && previousMouseState.LeftButton == ButtonState.Released)
                     {
-                        cell.Blocked = !cell.Blocked;
+                        GridCell cell = grid.GetCell(gridX, gridY);
+                        if (cell != null)
+                        {
+                            cell.Blocked = !cell.Blocked;
+                        }
                     }
-                }
-                
-                if (mouseState.RightButton == ButtonState.Pressed && previousMouseState.RightButton == ButtonState.Released)
-                {
-                    GridCell cell = grid.GetCell(gridX, gridY);
-                    if (cell != null)
+                    
+                    if (mouseState.RightButton == ButtonState.Pressed && previousMouseState.RightButton == ButtonState.Released)
                     {
-                        cell.Height = (cell.Height + 1) % 10;
+                        GridCell cell = grid.GetCell(gridX, gridY);
+                        if (cell != null)
+                        {
+                            cell.Height = (cell.Height + 1) % 10;
+                        }
                     }
-                }
-                
-                if (mouseState.MiddleButton == ButtonState.Pressed && previousMouseState.MiddleButton == ButtonState.Released)
-                {
-                    GridCell cell = grid.GetCell(gridX, gridY);
-                    if (cell != null)
+                    
+                    if (mouseState.MiddleButton == ButtonState.Pressed && previousMouseState.MiddleButton == ButtonState.Released)
                     {
-                        cell.Alignment = (cell.Alignment + 1) % 20;
+                        GridCell cell = grid.GetCell(gridX, gridY);
+                        if (cell != null)
+                        {
+                            cell.Alignment = (cell.Alignment + 1) % 20;
+                        }
                     }
                 }
             }
@@ -200,7 +236,7 @@ namespace GridDisplay
                     Vector2 leftBorder = new VisibilityCone().SnapToGrid(centerScreen + new Vector2(-100, -50), cameraOffset, grid.CellSizeX, grid.CellSizeY);
                     Vector2 rightBorder = new VisibilityCone().SnapToGrid(centerScreen + new Vector2(100, -50), cameraOffset, grid.CellSizeX, grid.CellSizeY);
                     
-                    visibilityCone = new VisibilityCone(focus, leftBorder, rightBorder);
+                    visibilityCone = new VisibilityCone(focus, leftBorder, rightBorder, cameraOffset);
                 }
                 else
                 {
@@ -211,8 +247,8 @@ namespace GridDisplay
                 }
             }
             
-            // Handle cone point dragging
-            if (visibilityCone != null && visibilityCone.IsActive)
+            // Handle cone point dragging (only when not camera dragging)
+            if (visibilityCone != null && visibilityCone.IsActive && !isCameraDragging)
             {
                 Vector2 mousePosition = ScreenToWorld(new Vector2(mouseState.X, mouseState.Y));
                 
@@ -231,7 +267,7 @@ namespace GridDisplay
                 {
                     // Update dragged point position with snapping
                     Vector2 snappedPos = visibilityCone.SnapToGrid(mousePosition, cameraOffset, grid.CellSizeX, grid.CellSizeY);
-                    visibilityCone.SetPoint(draggedPointIndex, snappedPos);
+                    visibilityCone.SetPoint(draggedPointIndex, snappedPos, cameraOffset);
                 }
                 
                 if (mouseState.LeftButton == ButtonState.Released)
@@ -714,9 +750,14 @@ namespace GridDisplay
             Color darkPurple = new Color(75, 0, 130); // Dark purple RGB
             Color lightPurple = new Color(138, 43, 226); // Lighter purple for hover
             
+            // Get world coordinates for drawing
+            Vector2 focusPoint = visibilityCone.GetPoint(0, cameraOffset);
+            Vector2 leftBorderPoint = visibilityCone.GetPoint(1, cameraOffset);
+            Vector2 rightBorderPoint = visibilityCone.GetPoint(2, cameraOffset);
+            
             // Draw lines from focus point to border points
-            DrawLine(spriteBatch, pixelTexture, visibilityCone.FocusPoint, visibilityCone.LeftBorderPoint, darkPurple, 3);
-            DrawLine(spriteBatch, pixelTexture, visibilityCone.FocusPoint, visibilityCone.RightBorderPoint, darkPurple, 3);
+            DrawLine(spriteBatch, pixelTexture, focusPoint, leftBorderPoint, darkPurple, 3);
+            DrawLine(spriteBatch, pixelTexture, focusPoint, rightBorderPoint, darkPurple, 3);
             
             // Check for hover on points (convert mouse to world coordinates)
             Vector2 mousePosition = ScreenToWorld(new Vector2(Mouse.GetState().X, Mouse.GetState().Y));
@@ -727,7 +768,7 @@ namespace GridDisplay
             
             for (int i = 0; i < 3; i++)
             {
-                Vector2 point = visibilityCone.GetPoint(i);
+                Vector2 point = visibilityCone.GetPoint(i, cameraOffset);
                 Color pointColor = darkPurple;
                 int currentRadius = pointRadius;
                 
@@ -765,7 +806,7 @@ namespace GridDisplay
             int windowX = 1330;
             int windowY = 190; // Cell info window is at y=50 with height=120, so 50+120+20 = 190
             int windowWidth = 250;
-            int windowHeight = 270;
+            int windowHeight = 290;
             
             // Window background
             spriteBatch.Draw(pixelTexture, 
@@ -814,9 +855,11 @@ namespace GridDisplay
             yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "Arrow Keys - Move Camera", windowX + 10, yPos, Color.White);
             yPos += lineHeight;
-            DrawPixelText(spriteBatch, pixelTexture, "Scroll - Move Horizontal", windowX + 10, yPos, Color.White);
+            DrawPixelText(spriteBatch, pixelTexture, "Scroll - Move Vertical", windowX + 10, yPos, Color.White);
             yPos += lineHeight;
-            DrawPixelText(spriteBatch, pixelTexture, "SHIFT+Scroll - Move Vertical", windowX + 10, yPos, Color.White);
+            DrawPixelText(spriteBatch, pixelTexture, "SHIFT+Scroll - Move Horizontal", windowX + 10, yPos, Color.White);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "SPACE+Drag - Move Camera", windowX + 10, yPos, Color.White);
             yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "CTRL+Scroll - Zoom", windowX + 10, yPos, Color.White);
             yPos += lineHeight;
