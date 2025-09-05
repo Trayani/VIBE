@@ -855,12 +855,6 @@ namespace GridDisplay
         {
             if (visibilityCone == null || !visibilityCone.IsActive)
                 return false;
-                
-            // Get cell center position in world coordinates
-            Vector2 cellCenter = new Vector2(
-                cellX * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
-                cellY * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y
-            );
             
             // Get cone points
             Vector2 focusPoint = visibilityCone.GetPoint(0, cameraOffset);
@@ -872,24 +866,56 @@ namespace GridDisplay
             float radiusToRight = Vector2.Distance(focusPoint, rightPoint);
             float maxRadius = Math.Max(radiusToLeft, radiusToRight);
             
-            // Check if cell is within the max radius
-            float distanceToCell = Vector2.Distance(focusPoint, cellCenter);
-            if (distanceToCell > maxRadius)
-                return false;
-            
-            // Calculate angles
+            // Calculate angles for arc boundaries
             float leftAngle = (float)Math.Atan2(leftPoint.Y - focusPoint.Y, leftPoint.X - focusPoint.X);
             float rightAngle = (float)Math.Atan2(rightPoint.Y - focusPoint.Y, rightPoint.X - focusPoint.X);
-            float cellAngle = (float)Math.Atan2(cellCenter.Y - focusPoint.Y, cellCenter.X - focusPoint.X);
             
             // Normalize angles to ensure proper arc checking
             if (rightAngle < leftAngle)
                 rightAngle += (float)(2 * Math.PI);
-            if (cellAngle < leftAngle)
-                cellAngle += (float)(2 * Math.PI);
+            
+            // Get all four corners of the cell in world coordinates
+            Vector2 topLeft = new Vector2(
+                cellX * grid.CellSizeX + cameraOffset.X,
+                cellY * grid.CellSizeY + cameraOffset.Y
+            );
+            Vector2 topRight = new Vector2(
+                cellX * grid.CellSizeX + grid.CellSizeX + cameraOffset.X,
+                cellY * grid.CellSizeY + cameraOffset.Y
+            );
+            Vector2 bottomLeft = new Vector2(
+                cellX * grid.CellSizeX + cameraOffset.X,
+                cellY * grid.CellSizeY + grid.CellSizeY + cameraOffset.Y
+            );
+            Vector2 bottomRight = new Vector2(
+                cellX * grid.CellSizeX + grid.CellSizeX + cameraOffset.X,
+                cellY * grid.CellSizeY + grid.CellSizeY + cameraOffset.Y
+            );
+            
+            // Check if ALL four corners are within the arc
+            Vector2[] corners = { topLeft, topRight, bottomLeft, bottomRight };
+            
+            foreach (Vector2 corner in corners)
+            {
+                // Check if corner is within the max radius
+                float distanceToCorner = Vector2.Distance(focusPoint, corner);
+                if (distanceToCorner > maxRadius)
+                    return false;
                 
-            // Check if cell angle is within the arc
-            return cellAngle >= leftAngle && cellAngle <= rightAngle;
+                // Check if corner angle is within the arc
+                float cornerAngle = (float)Math.Atan2(corner.Y - focusPoint.Y, corner.X - focusPoint.X);
+                
+                // Normalize corner angle
+                if (cornerAngle < leftAngle)
+                    cornerAngle += (float)(2 * Math.PI);
+                    
+                // If any corner is outside the arc, the cell is not completely visible
+                if (cornerAngle < leftAngle || cornerAngle > rightAngle)
+                    return false;
+            }
+            
+            // All corners are within the arc and radius
+            return true;
         }
         
         private void DrawControlsWindow(SpriteBatch spriteBatch, Texture2D pixelTexture)
