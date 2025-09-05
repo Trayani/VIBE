@@ -1079,9 +1079,9 @@ namespace GridDisplay
             float rightAngle = (float)Math.Atan2(rightPoint.Y - focusPoint.Y, rightPoint.X - focusPoint.X);
             if (rightAngle < leftAngle) rightAngle += (float)(2 * Math.PI);
             
-            Color shadowLineColor = Color.Orange; // Bright orange for visibility
+            Color shadowLineColor = new Color(20, 20, 20); // Very dark gray, almost black
             
-            // Go back to working version but with arc filtering
+            // Process blocked cells with proper edge shadow casting
             for (int x = 0; x < grid.Width; x++)
             {
                 for (int y = 0; y < grid.Height; y++)
@@ -1089,11 +1089,9 @@ namespace GridDisplay
                     GridCell cell = grid.GetCell(x, y);
                     if (cell != null && cell.Blocked)
                     {
-                        // Get blocked cell center
-                        Vector2 cellCenter = new Vector2(
-                            x * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
-                            y * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y
-                        );
+                        // Get blocked cell bounds
+                        Vector2 cellTopLeft = new Vector2(x * grid.CellSizeX + cameraOffset.X, y * grid.CellSizeY + cameraOffset.Y);
+                        Vector2 cellCenter = cellTopLeft + new Vector2(grid.CellSizeX / 2, grid.CellSizeY / 2);
                         
                         // Filter: Check if cell is within cone radius
                         float distToCell = Vector2.Distance(focusPoint, cellCenter);
@@ -1106,11 +1104,68 @@ namespace GridDisplay
                         if (cellAngle < leftAngle || cellAngle > rightAngle)
                             continue;
                         
-                        // This blocked cell is within the arc - draw simple shadow
-                        Vector2 direction = Vector2.Normalize(cellCenter - focusPoint);
-                        Vector2 shadowEnd = cellCenter + direction * 150; // Extend shadow beyond cell
+                        // Calculate proper shadow casting corners based on focus position
+                        Vector2 toCell = cellCenter - focusPoint;
                         
-                        DrawLine(spriteBatch, pixelTexture, cellCenter, shadowEnd, shadowLineColor, 2);
+                        // Define all four corners
+                        Vector2 topLeft = cellTopLeft;
+                        Vector2 topRight = cellTopLeft + new Vector2(grid.CellSizeX, 0);
+                        Vector2 bottomLeft = cellTopLeft + new Vector2(0, grid.CellSizeY);
+                        Vector2 bottomRight = cellTopLeft + new Vector2(grid.CellSizeX, grid.CellSizeY);
+                        
+                        Vector2 shadowCastPoint1, shadowCastPoint2;
+
+                        // Determine which corners to cast shadows from based on focus position
+                        if (toCell.X == 0) {
+                            if (toCell.Y > 0) {
+                                shadowCastPoint1 = bottomRight;
+                                shadowCastPoint2 = bottomLeft;
+                            }
+                            else {
+                                shadowCastPoint1 = topRight;
+                                shadowCastPoint2 = topLeft;
+                            }
+                        } else if (toCell.Y == 0) {
+                            if (toCell.X > 0) {
+                                shadowCastPoint1 = topLeft;
+                                shadowCastPoint2 = bottomLeft;
+                            }
+                            else {
+                                shadowCastPoint1 = topRight;
+                                shadowCastPoint2 = bottomRight;
+                            }
+                            
+                        } 
+                        else if (toCell.X > 0 && toCell.Y > 0) // Focus is up-left of cell (cell is down-right of focus)
+                        {
+                            shadowCastPoint1 = topRight;     // Cast from top-left corner
+                            shadowCastPoint2 = bottomLeft; // Cast from bottom-right corner
+                        }
+                        else if (toCell.X < 0 && toCell.Y > 0) // Focus is up-right of cell (cell is down-left of focus)
+                        {
+                            shadowCastPoint1 = topLeft;    // Cast from top-right corner
+                            shadowCastPoint2 = bottomRight;  // Cast from bottom-left corner
+                        }
+                        else if (toCell.X > 0 && toCell.Y < 0) // Focus is down-left of cell (cell is up-right of focus)
+                        {
+                            shadowCastPoint1 = bottomRight;  // Cast from bottom-left corner
+                            shadowCastPoint2 = topLeft;    // Cast from top-right corner
+                        }
+                        else // Focus is down-right of cell (toCell.X < 0 && toCell.Y < 0)
+                        {
+                            shadowCastPoint1 = bottomLeft; // Cast from bottom-right corner
+                            shadowCastPoint2 = topRight;     // Cast from top-left corner
+                        }
+                        
+                        // Cast shadows from both edge points
+                        Vector2 direction1 = Vector2.Normalize(shadowCastPoint1 - focusPoint);
+                        Vector2 direction2 = Vector2.Normalize(shadowCastPoint2 - focusPoint);
+                        
+                        Vector2 shadowEnd1 = focusPoint + direction1 * maxRadius;
+                        Vector2 shadowEnd2 = focusPoint + direction2 * maxRadius;
+                        
+                        DrawLine(spriteBatch, pixelTexture, shadowCastPoint1, shadowEnd1, shadowLineColor, 2);
+                        DrawLine(spriteBatch, pixelTexture, shadowCastPoint2, shadowEnd2, shadowLineColor, 2);
                     }
                 }
             }
