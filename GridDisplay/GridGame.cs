@@ -292,7 +292,7 @@ namespace GridDisplay
             Matrix transformMatrix = Matrix.CreateScale(zoomLevel) * Matrix.CreateTranslation(0, 0, 0);
             spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, null, null, null, null, transformMatrix);
             
-            grid.Draw(spriteBatch, pixelTexture, cameraOffset);
+            grid.Draw(spriteBatch, pixelTexture, cameraOffset, IsCellVisibleInCone);
             
             // Draw start cell indicator
             Vector2 startPos = new Vector2(startCellX * grid.CellSizeX + cameraOffset.X - 2,
@@ -849,6 +849,47 @@ namespace GridDisplay
                 DrawLine(spriteBatch, pixelTexture, prevPoint, currentPoint, color, thickness);
                 prevPoint = currentPoint;
             }
+        }
+        
+        private bool IsCellVisibleInCone(int cellX, int cellY)
+        {
+            if (visibilityCone == null || !visibilityCone.IsActive)
+                return false;
+                
+            // Get cell center position in world coordinates
+            Vector2 cellCenter = new Vector2(
+                cellX * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
+                cellY * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y
+            );
+            
+            // Get cone points
+            Vector2 focusPoint = visibilityCone.GetPoint(0, cameraOffset);
+            Vector2 leftPoint = visibilityCone.GetPoint(1, cameraOffset);
+            Vector2 rightPoint = visibilityCone.GetPoint(2, cameraOffset);
+            
+            // Calculate distances and use maximum radius
+            float radiusToLeft = Vector2.Distance(focusPoint, leftPoint);
+            float radiusToRight = Vector2.Distance(focusPoint, rightPoint);
+            float maxRadius = Math.Max(radiusToLeft, radiusToRight);
+            
+            // Check if cell is within the max radius
+            float distanceToCell = Vector2.Distance(focusPoint, cellCenter);
+            if (distanceToCell > maxRadius)
+                return false;
+            
+            // Calculate angles
+            float leftAngle = (float)Math.Atan2(leftPoint.Y - focusPoint.Y, leftPoint.X - focusPoint.X);
+            float rightAngle = (float)Math.Atan2(rightPoint.Y - focusPoint.Y, rightPoint.X - focusPoint.X);
+            float cellAngle = (float)Math.Atan2(cellCenter.Y - focusPoint.Y, cellCenter.X - focusPoint.X);
+            
+            // Normalize angles to ensure proper arc checking
+            if (rightAngle < leftAngle)
+                rightAngle += (float)(2 * Math.PI);
+            if (cellAngle < leftAngle)
+                cellAngle += (float)(2 * Math.PI);
+                
+            // Check if cell angle is within the arc
+            return cellAngle >= leftAngle && cellAngle <= rightAngle;
         }
         
         private void DrawControlsWindow(SpriteBatch spriteBatch, Texture2D pixelTexture)
