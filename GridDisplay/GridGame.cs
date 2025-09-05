@@ -24,13 +24,13 @@ namespace GridDisplay
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
             
-            graphics.PreferredBackBufferWidth = 1400;
-            graphics.PreferredBackBufferHeight = 800;
+            graphics.PreferredBackBufferWidth = 1600;
+            graphics.PreferredBackBufferHeight = 900;
         }
 
         protected override void Initialize()
         {
-            grid = new Grid(20, 15, 40);
+            grid = new Grid(45, 35, 28, 20);
             cameraOffset = new Vector2(50, 50);
             
             base.Initialize();
@@ -63,8 +63,8 @@ namespace GridDisplay
             if (keyboardState.IsKeyDown(Keys.Down))
                 cameraOffset.Y -= 5;
             
-            int gridX = (int)((mouseState.X - cameraOffset.X) / grid.CellSize);
-            int gridY = (int)((mouseState.Y - cameraOffset.Y) / grid.CellSize);
+            int gridX = (int)((mouseState.X - cameraOffset.X) / grid.CellSizeX);
+            int gridY = (int)((mouseState.Y - cameraOffset.Y) / grid.CellSizeY);
             
             if (gridX >= 0 && gridX < grid.Width && gridY >= 0 && gridY < grid.Height)
             {
@@ -94,7 +94,7 @@ namespace GridDisplay
                     GridCell cell = grid.GetCell(gridX, gridY);
                     if (cell != null)
                     {
-                        cell.Alignment = (cell.Alignment + 1) % 11 - 5;
+                        cell.Alignment = (cell.Alignment + 1) % 20;
                     }
                 }
             }
@@ -106,7 +106,7 @@ namespace GridDisplay
             
             if (keyboardState.IsKeyDown(Keys.R) && !previousKeyboardState.IsKeyDown(Keys.R))
             {
-                grid = new Grid(20, 15, 40);
+                grid = new Grid(45, 35, 28, 20);
             }
             
             // Set new start cell with S key
@@ -134,33 +134,36 @@ namespace GridDisplay
             grid.Draw(spriteBatch, pixelTexture, cameraOffset);
             
             // Draw start cell indicator
-            Vector2 startPos = new Vector2(startCellX * grid.CellSize + cameraOffset.X - 2,
-                                          startCellY * grid.CellSize + cameraOffset.Y - 2);
+            Vector2 startPos = new Vector2(startCellX * grid.CellSizeX + cameraOffset.X - 2,
+                                          startCellY * grid.CellSizeY + cameraOffset.Y - 2);
             spriteBatch.Draw(pixelTexture,
-                new Rectangle((int)startPos.X, (int)startPos.Y, grid.CellSize + 3, grid.CellSize + 3),
+                new Rectangle((int)startPos.X, (int)startPos.Y, grid.CellSizeX + 3, grid.CellSizeY + 3),
                 Color.Lime * 0.6f);
             
             // Draw line from start cell to mouse cell
             if (selectedX >= 0 && selectedY >= 0)
             {
-                Vector2 startCenter = new Vector2(startCellX * grid.CellSize + grid.CellSize / 2 + cameraOffset.X,
-                                                 startCellY * grid.CellSize + grid.CellSize / 2 + cameraOffset.Y);
-                Vector2 mouseCenter = new Vector2(selectedX * grid.CellSize + grid.CellSize / 2 + cameraOffset.X,
-                                                 selectedY * grid.CellSize + grid.CellSize / 2 + cameraOffset.Y);
+                Vector2 startCenter = new Vector2(startCellX * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
+                                                 startCellY * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y);
+                Vector2 mouseCenter = new Vector2(selectedX * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
+                                                 selectedY * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y);
                 
                 DrawLine(spriteBatch, pixelTexture, startCenter, mouseCenter, Color.Black, 4);
                 
                 // Draw selection highlight
-                Vector2 position = new Vector2(selectedX * grid.CellSize + cameraOffset.X - 2, 
-                                              selectedY * grid.CellSize + cameraOffset.Y - 2);
+                Vector2 position = new Vector2(selectedX * grid.CellSizeX + cameraOffset.X - 2, 
+                                              selectedY * grid.CellSizeY + cameraOffset.Y - 2);
                 spriteBatch.Draw(pixelTexture, 
-                    new Rectangle((int)position.X, (int)position.Y, grid.CellSize + 3, grid.CellSize + 3), 
+                    new Rectangle((int)position.X, (int)position.Y, grid.CellSizeX + 3, grid.CellSizeY + 3), 
                     Color.Red * 0.5f);
             }
             
             
             // Draw cell info window
             DrawCellInfoWindow(spriteBatch, pixelTexture);
+            
+            // Draw controls window
+            DrawControlsWindow(spriteBatch, pixelTexture);
             
             spriteBatch.End();
             
@@ -185,9 +188,10 @@ namespace GridDisplay
         
         private void DrawCellInfoWindow(SpriteBatch spriteBatch, Texture2D pixelTexture)
         {
-            int windowX = 870;
+            // Position window to the right of the grid (grid width: 45 * 28 = 1260px + 50px offset = 1310px)
+            int windowX = 1330;
             int windowY = 50;
-            int windowWidth = 200;
+            int windowWidth = 250;
             int windowHeight = 120;
             
             // Window background
@@ -220,7 +224,8 @@ namespace GridDisplay
                     DrawPixelText(spriteBatch, pixelTexture, $"Position: [{selectedX},{selectedY}]", windowX + 10, windowY + 30, Color.White);
                     DrawPixelText(spriteBatch, pixelTexture, $"Blocked: {(cell.Blocked ? "YES" : "NO")}", windowX + 10, windowY + 50, cell.Blocked ? Color.Red : Color.Green);
                     DrawPixelText(spriteBatch, pixelTexture, $"Height: {cell.Height}", windowX + 10, windowY + 70, Color.White);
-                    DrawPixelText(spriteBatch, pixelTexture, $"Alignment: {cell.Alignment}", windowX + 10, windowY + 90, Color.Yellow);
+                    char alignmentLetter = (char)('A' + cell.Alignment);
+                    DrawPixelText(spriteBatch, pixelTexture, $"Alignment: {alignmentLetter}", windowX + 10, windowY + 90, Color.Yellow);
                 }
             }
             else
@@ -557,6 +562,74 @@ namespace GridDisplay
                         {true,true,true,true,true}
                     };
             }
+        }
+        
+        private void DrawControlsWindow(SpriteBatch spriteBatch, Texture2D pixelTexture)
+        {
+            // Position window under the cell info window
+            int windowX = 1330;
+            int windowY = 190; // Cell info window is at y=50 with height=120, so 50+120+20 = 190
+            int windowWidth = 250;
+            int windowHeight = 240;
+            
+            // Window background
+            spriteBatch.Draw(pixelTexture, 
+                new Rectangle(windowX, windowY, windowWidth, windowHeight), 
+                Color.Black * 0.8f);
+            
+            // Window border
+            spriteBatch.Draw(pixelTexture, 
+                new Rectangle(windowX - 2, windowY - 2, windowWidth + 4, 2), 
+                Color.White);
+            spriteBatch.Draw(pixelTexture, 
+                new Rectangle(windowX - 2, windowY + windowHeight, windowWidth + 4, 2), 
+                Color.White);
+            spriteBatch.Draw(pixelTexture, 
+                new Rectangle(windowX - 2, windowY, 2, windowHeight), 
+                Color.White);
+            spriteBatch.Draw(pixelTexture, 
+                new Rectangle(windowX + windowWidth, windowY, 2, windowHeight), 
+                Color.White);
+            
+            int yPos = windowY + 10;
+            int lineHeight = 16;
+            
+            // Title
+            DrawPixelText(spriteBatch, pixelTexture, "CONTROLS", windowX + 10, yPos, Color.Cyan);
+            yPos += lineHeight + 5;
+            
+            // Mouse controls
+            DrawPixelText(spriteBatch, pixelTexture, "MOUSE:", windowX + 10, yPos, Color.Yellow);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "Left Click - Toggle Blocked", windowX + 10, yPos, Color.White);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "Right Click - Change Height", windowX + 10, yPos, Color.White);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "Middle Click - Change Alignment", windowX + 10, yPos, Color.White);
+            yPos += lineHeight + 5;
+            
+            // Keyboard controls
+            DrawPixelText(spriteBatch, pixelTexture, "KEYBOARD:", windowX + 10, yPos, Color.Yellow);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "S - Set Start Cell", windowX + 10, yPos, Color.Lime);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "Arrow Keys - Move Camera", windowX + 10, yPos, Color.White);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "R - Reset Grid", windowX + 10, yPos, Color.White);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "ESC - Exit", windowX + 10, yPos, Color.White);
+            yPos += lineHeight + 5;
+            
+            // Visual legend
+            DrawPixelText(spriteBatch, pixelTexture, "COLORS:", windowX + 10, yPos, Color.Yellow);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "Red - Blocked Cell", windowX + 10, yPos, Color.Red);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "Cyan Scale - Height 0-9", windowX + 10, yPos, Color.Cyan);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "Green - Start Cell", windowX + 10, yPos, Color.Lime);
+            yPos += lineHeight;
+            DrawPixelText(spriteBatch, pixelTexture, "Black Line - Path to Mouse", windowX + 10, yPos, Color.White);
         }
     }
 }
