@@ -24,8 +24,8 @@ namespace GridDisplay
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
             
-            graphics.PreferredBackBufferWidth = 1024;
-            graphics.PreferredBackBufferHeight = 768;
+            graphics.PreferredBackBufferWidth = 1400;
+            graphics.PreferredBackBufferHeight = 800;
         }
 
         protected override void Initialize()
@@ -159,6 +159,9 @@ namespace GridDisplay
             }
             
             
+            // Draw cell info window
+            DrawCellInfoWindow(spriteBatch, pixelTexture);
+            
             spriteBatch.End();
             
             base.Draw(gameTime);
@@ -178,6 +181,119 @@ namespace GridDisplay
                 new Vector2(0, 0),
                 SpriteEffects.None,
                 0);
+        }
+        
+        private void DrawCellInfoWindow(SpriteBatch spriteBatch, Texture2D pixelTexture)
+        {
+            int windowX = 870;
+            int windowY = 50;
+            int windowWidth = 200;
+            int windowHeight = 120;
+            
+            // Window background
+            spriteBatch.Draw(pixelTexture, 
+                new Rectangle(windowX, windowY, windowWidth, windowHeight), 
+                Color.Black * 0.8f);
+            
+            // Window border
+            spriteBatch.Draw(pixelTexture, 
+                new Rectangle(windowX - 2, windowY - 2, windowWidth + 4, 2), 
+                Color.White);
+            spriteBatch.Draw(pixelTexture, 
+                new Rectangle(windowX - 2, windowY + windowHeight, windowWidth + 4, 2), 
+                Color.White);
+            spriteBatch.Draw(pixelTexture, 
+                new Rectangle(windowX - 2, windowY, 2, windowHeight), 
+                Color.White);
+            spriteBatch.Draw(pixelTexture, 
+                new Rectangle(windowX + windowWidth, windowY, 2, windowHeight), 
+                Color.White);
+            
+            // Title
+            DrawPixelText(spriteBatch, pixelTexture, "CELL INFO", windowX + 10, windowY + 10, Color.Cyan);
+            
+            if (selectedX >= 0 && selectedY >= 0)
+            {
+                GridCell cell = grid.GetCell(selectedX, selectedY);
+                if (cell != null)
+                {
+                    DrawPixelText(spriteBatch, pixelTexture, $"Position: [{selectedX},{selectedY}]", windowX + 10, windowY + 30, Color.White);
+                    DrawPixelText(spriteBatch, pixelTexture, $"Blocked: {(cell.Blocked ? "YES" : "NO")}", windowX + 10, windowY + 50, cell.Blocked ? Color.Red : Color.Green);
+                    DrawPixelText(spriteBatch, pixelTexture, $"Height: {cell.Height}", windowX + 10, windowY + 70, Color.White);
+                    DrawPixelText(spriteBatch, pixelTexture, $"Alignment: {cell.Alignment}", windowX + 10, windowY + 90, Color.Yellow);
+                }
+            }
+            else
+            {
+                DrawPixelText(spriteBatch, pixelTexture, "Hover over a cell", windowX + 10, windowY + 50, Color.Gray);
+            }
+        }
+        
+        private void DrawPixelText(SpriteBatch spriteBatch, Texture2D pixelTexture, string text, int x, int y, Color color)
+        {
+            // Simple bitmap font using pixel patterns for each character
+            int charWidth = 6;
+            int charHeight = 8;
+            int originalX = x;
+            
+            foreach (char c in text)
+            {
+                if (c == ' ')
+                {
+                    x += charWidth;
+                    continue;
+                }
+                else if (c == '\n')
+                {
+                    x = originalX;
+                    y += charHeight + 2;
+                    continue;
+                }
+                
+                DrawCharacter(spriteBatch, pixelTexture, c, x, y, color);
+                x += charWidth;
+            }
+        }
+        
+        private void DrawCharacter(SpriteBatch spriteBatch, Texture2D pixelTexture, char c, int x, int y, Color color)
+        {
+            // Simple 5x7 bitmap characters - just draw basic rectangles for visibility
+            switch (char.ToUpper(c))
+            {
+                case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H':
+                case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': case 'O': case 'P':
+                case 'Q': case 'R': case 'S': case 'T': case 'U': case 'V': case 'W': case 'X':
+                case 'Y': case 'Z':
+                    // Draw a simple rectangle for letters
+                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y, 4, 7), color);
+                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y, 4, 1), color);
+                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y + 3, 4, 1), color);
+                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y + 6, 4, 1), color);
+                    break;
+                case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+                    // Draw numbers with distinct patterns
+                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y, 4, 7), color);
+                    if (c != '1') spriteBatch.Draw(pixelTexture, new Rectangle(x, y, 4, 1), color);
+                    if (c != '1' && c != '7') spriteBatch.Draw(pixelTexture, new Rectangle(x, y + 6, 4, 1), color);
+                    break;
+                case '[': case ']': case '(': case ')':
+                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y, 2, 7), color);
+                    break;
+                case ',': case '.':
+                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y + 5, 2, 2), color);
+                    break;
+                case ':':
+                    spriteBatch.Draw(pixelTexture, new Rectangle(x + 1, y + 2, 1, 1), color);
+                    spriteBatch.Draw(pixelTexture, new Rectangle(x + 1, y + 4, 1, 1), color);
+                    break;
+                case '-':
+                    spriteBatch.Draw(pixelTexture, new Rectangle(x, y + 3, 4, 1), color);
+                    break;
+                default:
+                    // Default character (small rectangle)
+                    spriteBatch.Draw(pixelTexture, new Rectangle(x + 1, y + 2, 2, 3), color);
+                    break;
+            }
         }
     }
 }
