@@ -11,6 +11,19 @@ namespace GridDisplay
             Console.WriteLine("Testing Range of Vision Algorithm");
             Console.WriteLine("==================================");
             
+            RunCase1Test();
+            
+            Console.WriteLine("\n\n" + new string('=', 50));
+            Console.WriteLine("TESTING CASE 2 (Multiple Obstacles)");
+            Console.WriteLine(new string('=', 50));
+            
+            RunCase2Test();
+        }
+        
+        private static void RunCase1Test()
+        {
+            Console.WriteLine("CASE 1: Single obstacle test");
+            
             var grid = new Grid(26, 27, 28, 20);
             
             for (int x = 0; x < grid.Width; x++)
@@ -303,6 +316,76 @@ namespace GridDisplay
                 }
                 Console.WriteLine();
             }
+        }
+        
+        private static void RunCase2Test()
+        {
+            var grid = new Grid(26, 27, 28, 20);
+            
+            // Clear grid
+            for (int x = 0; x < grid.Width; x++)
+            {
+                for (int y = 0; y < grid.Height; y++)
+                {
+                    grid.SetCell(x, y, new GridCell(false, 0, 0));
+                }
+            }
+            
+            // Set obstacles from case2.csv
+            grid.SetCell(20, 2, new GridCell(true, 0, 0));  // X at (20,2)
+            grid.SetCell(10, 5, new GridCell(true, 0, 0));  // X at (10,5)
+            grid.SetCell(6, 10, new GridCell(true, 0, 0));  // X at (6,10)
+            grid.SetCell(1, 13, new GridCell(true, 0, 0));  // X at (1,13)
+            grid.SetCell(2, 13, new GridCell(true, 0, 0));  // X at (2,13)
+            grid.SetCell(3, 13, new GridCell(true, 0, 0));  // X at (3,13)
+            grid.SetCell(15, 14, new GridCell(true, 0, 0)); // X at (15,14)
+            
+            Point viewerPosition = new Point(3, 2); // V at (3,2)
+            
+            var rangeOfVision = new RangeOfVision(grid);
+            rangeOfVision.EnableDebug = true;
+            var visibilityMap = rangeOfVision.CalculateVisibility(viewerPosition);
+            
+            Console.WriteLine("\nCase 2 Grid with visibility (V=viewer, X=obstacle, .=visible, !=not visible):");
+            Console.WriteLine("    " + string.Join("", GetColumnHeaders(grid.Width)));
+            
+            for (int y = 0; y < Math.Min(grid.Height, 27); y++)
+            {
+                Console.Write($"{y,2}: ");
+                for (int x = 0; x < Math.Min(grid.Width, 26); x++)
+                {
+                    if (x == viewerPosition.X && y == viewerPosition.Y)
+                    {
+                        Console.Write("V ");
+                    }
+                    else if (grid.GetCell(x, y).Blocked)
+                    {
+                        Console.Write("X ");
+                    }
+                    else if (visibilityMap[x, y])
+                    {
+                        Console.Write(". ");
+                    }
+                    else
+                    {
+                        Console.Write("! ");
+                    }
+                }
+                Console.WriteLine();
+            }
+            
+            Console.WriteLine("\nCase 2 CSV Output:");
+            PrintVisibilityMapAsCSV(grid, visibilityMap, viewerPosition);
+            
+            // Test some specific cells from case2.csv
+            Console.WriteLine("\nCase 2 Visibility Tests:");
+            CheckExpectedInvisible(21, 2, visibilityMap, "Behind obstacle (20,2)");
+            CheckExpectedInvisible(11, 5, visibilityMap, "Behind obstacle (10,5)");
+            CheckExpectedInvisible(7, 10, visibilityMap, "Behind obstacle (6,10)");
+            CheckExpectedInvisible(1, 14, visibilityMap, "Behind obstacle wall (1,13)");
+            CheckExpectedInvisible(2, 14, visibilityMap, "Behind obstacle wall (2,13)");
+            CheckExpectedInvisible(3, 14, visibilityMap, "Behind obstacle wall (3,13)");
+            CheckExpectedInvisible(16, 14, visibilityMap, "Behind obstacle (15,14)");
         }
     }
 }

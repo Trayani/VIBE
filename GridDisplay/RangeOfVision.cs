@@ -86,7 +86,24 @@ namespace GridDisplay
             int dx = x - viewerPosition.X;
             int dy = y - viewerPosition.Y;
             
-            if (dy == 0) return false;
+            // Handle horizontal shadows (same Y level as viewer)
+            if (dy == 0)
+            {
+                // For horizontal obstacles, check if target is directly behind obstacle
+                Vector2 obstaclePos = cone.ObstaclePosition;
+                int obstacleDx = (int)obstaclePos.X - viewerPosition.X;
+                
+                // Shadow extends horizontally from obstacle
+                if (obstacleDx > 0 && dx > obstacleDx) // Obstacle to the right, target further right
+                {
+                    return true;
+                }
+                else if (obstacleDx < 0 && dx < obstacleDx) // Obstacle to the left, target further left
+                {
+                    return true;
+                }
+                return false;
+            }
             
             if ((dy > 0) != (cone.LeftBorderDiff.Y > 0))
                 return false;
