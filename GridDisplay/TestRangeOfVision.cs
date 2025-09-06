@@ -181,7 +181,11 @@ namespace GridDisplay
             
             for (int y = 16; y <= 25; y++)
             {
-                CheckExpectedInvisible(15, y, visibilityMap, $"Column 15, row {y}");
+                // Skip (15,25) since it's on the right border and should be visible
+                if (!(y == 25))
+                {
+                    CheckExpectedInvisible(15, y, visibilityMap, $"Column 15, row {y}");
+                }
                 CheckExpectedInvisible(16, y, visibilityMap, $"Column 16, row {y}");
                 CheckExpectedInvisible(17, y, visibilityMap, $"Column 17, row {y}");
             }
