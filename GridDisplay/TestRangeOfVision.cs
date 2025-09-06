@@ -238,6 +238,11 @@ namespace GridDisplay
             bool isVisible = visibilityMap[x, y];
             string status = isVisible ? "PASS" : "FAIL";
             Console.WriteLine($"  [{status}] Cell ({x},{y}) should be visible - {description}: {isVisible}");
+            
+            if (!isVisible)
+            {
+                throw new Exception($"CRITICAL TEST FAILURE: Cell ({x},{y}) should be visible but is not - {description}");
+            }
         }
         
         private static void CheckExpectedInvisible(int x, int y, bool[,] visibilityMap, string description)
@@ -245,6 +250,11 @@ namespace GridDisplay
             bool isVisible = visibilityMap[x, y];
             string status = isVisible ? "FAIL" : "PASS";
             Console.WriteLine($"  [{status}] Cell ({x},{y}) should be invisible - {description}: {!isVisible}");
+            
+            if (isVisible)
+            {
+                throw new Exception($"CRITICAL TEST FAILURE: Cell ({x},{y}) should be invisible but is visible - {description}");
+            }
         }
         
         private static void CheckCoordinateProgression(int vx, int vy, int dx, int dy, int targetX, int targetY, bool[,] visibilityMap)
@@ -331,14 +341,14 @@ namespace GridDisplay
                 }
             }
             
+            // Parse case2.csv to get obstacles and expected invisible cells
+            var (obstacles, expectedInvisible) = ParseCase2CSV();
+            
             // Set obstacles from case2.csv
-            grid.SetCell(20, 2, new GridCell(true, 0, 0));  // X at (20,2)
-            grid.SetCell(10, 5, new GridCell(true, 0, 0));  // X at (10,5)
-            grid.SetCell(6, 10, new GridCell(true, 0, 0));  // X at (6,10)
-            grid.SetCell(1, 13, new GridCell(true, 0, 0));  // X at (1,13)
-            grid.SetCell(2, 13, new GridCell(true, 0, 0));  // X at (2,13)
-            grid.SetCell(3, 13, new GridCell(true, 0, 0));  // X at (3,13)
-            grid.SetCell(15, 14, new GridCell(true, 0, 0)); // X at (15,14)
+            foreach (var obstacle in obstacles)
+            {
+                grid.SetCell(obstacle.X, obstacle.Y, new GridCell(true, 0, 0));
+            }
             
             Point viewerPosition = new Point(3, 2); // V at (3,2)
             
@@ -384,8 +394,70 @@ namespace GridDisplay
             CheckExpectedInvisible(7, 10, visibilityMap, "Behind obstacle (6,10)");
             CheckExpectedInvisible(1, 14, visibilityMap, "Behind obstacle wall (1,13)");
             CheckExpectedInvisible(2, 14, visibilityMap, "Behind obstacle wall (2,13)");
-            CheckExpectedInvisible(3, 14, visibilityMap, "Behind obstacle wall (3,13)");
+            // Note: (3,14) should be visible according to case2.csv, removing incorrect test
             CheckExpectedInvisible(16, 14, visibilityMap, "Behind obstacle (15,14)");
+            
+            // Test all expected invisible cells from case2.csv
+            Console.WriteLine($"\nTesting all {expectedInvisible.Count} expected invisible cells from case2.csv:");
+            int passCount = 0;
+            int failCount = 0;
+            
+            foreach (var cell in expectedInvisible)
+            {
+                bool isVisible = visibilityMap[cell.X, cell.Y];
+                if (!isVisible)
+                {
+                    passCount++;
+                }
+                else
+                {
+                    failCount++;
+                    Console.WriteLine($"  [FAIL] Cell ({cell.X},{cell.Y}) should be invisible but is visible");
+                }
+            }
+            
+            Console.WriteLine($"Results: {passCount} PASS, {failCount} FAIL out of {expectedInvisible.Count} total");
+            
+            // Throw exception if any test fails - this is critical
+            if (failCount > 0)
+            {
+                throw new Exception($"CRITICAL TEST FAILURE: {failCount} out of {expectedInvisible.Count} expected invisible cells are incorrectly visible! Algorithm accuracy: {(double)passCount/expectedInvisible.Count*100:F1}%");
+            }
+        }
+        
+        private static (List<Point> obstacles, List<Point> expectedInvisible) ParseCase2CSV()
+        {
+            var obstacles = new List<Point>();
+            var expectedInvisible = new List<Point>();
+            
+            string[] lines = System.IO.File.ReadAllLines("/home/jan/hobby/godo/GridDisplay/testFiles/case2.csv");
+            
+            for (int lineIndex = 1; lineIndex < lines.Length; lineIndex++) // Skip header
+            {
+                string line = lines[lineIndex];
+                string[] cells = line.Split(',');
+                
+                if (cells.Length > 1)
+                {
+                    int y = int.Parse(cells[0]); // First column is Y coordinate
+                    
+                    for (int x = 1; x < Math.Min(cells.Length, 27); x++) // Skip Y column, limit to 26 columns
+                    {
+                        string cell = cells[x].Trim();
+                        if (cell == "X")
+                        {
+                            int xCoord = x - 1; 
+                            obstacles.Add(new Point(xCoord, y));
+                        }
+                        else if (cell == "~")
+                        {
+                            expectedInvisible.Add(new Point(x - 1, y));
+                        }
+                    }
+                }
+            }
+            
+            return (obstacles, expectedInvisible);
         }
     }
 }

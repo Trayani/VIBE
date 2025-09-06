@@ -108,25 +108,26 @@ namespace GridDisplay
             if ((dy > 0) != (cone.LeftBorderDiff.Y > 0))
                 return false;
             
-            // All border progression cells should be visible
-            // The shadow is what's BETWEEN the borders, not ON the borders
-            
-            // Check if this cell lies exactly on either border line
+            // Make shadows more conservative - include more cells in shadow
             float xAtYLeft = viewerPosition.X + (cone.LeftBorderDiff.X * (float)dy / cone.LeftBorderDiff.Y);
             float xAtYRight = viewerPosition.X + (cone.RightBorderDiff.X * (float)dy / cone.RightBorderDiff.Y);
-            
-            // If the cell is exactly on a border line (within tolerance), it's visible
-            const float tolerance = 0.001f;
-            if (Math.Abs(x - xAtYLeft) < tolerance || Math.Abs(x - xAtYRight) < tolerance)
-            {
-                return false; // Border cells are visible
-            }
             
             float minX = Math.Min(xAtYLeft, xAtYRight);
             float maxX = Math.Max(xAtYLeft, xAtYRight);
             
-            // Only cells strictly within the shadow cone are blocked
-            return x > minX + tolerance && x < maxX - tolerance;
+            // More conservative shadow - include cells that are close to borders
+            // This makes the shadow cover upper and lower lines as well
+            
+            // Check if this cell lies exactly on either border line (should be visible)
+            const float borderTolerance = 0.1f;
+            if (Math.Abs(x - xAtYLeft) < borderTolerance || Math.Abs(x - xAtYRight) < borderTolerance)
+            {
+                return false; // Border cells are visible
+            }
+            
+            // Expand shadow area conservatively but not too much to preserve border visibility
+            const float expansionTolerance = 0.75f;
+            return x >= minX - expansionTolerance && x <= maxX + expansionTolerance;
         }
         
         private ShadowCone CreateShadowCone(int obstacleX, int obstacleY)
