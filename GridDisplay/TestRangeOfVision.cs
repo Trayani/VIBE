@@ -205,6 +205,9 @@ namespace GridDisplay
             CheckBorderPoint(21, 19, visibilityMap, "Left border at 21:19 (15+6, 13+6)");
             CheckBorderPoint(24, 22, visibilityMap, "Left border at 24:22 (15+9, 13+9)");
             CheckBorderPoint(27, 25, visibilityMap, "Left border at 27:25 (15+12, 13+12)");
+            
+            Console.WriteLine("\nCSV Output:");
+            PrintVisibilityMapAsCSV(grid, visibilityMap, viewerPosition);
         }
         
         private static string[] GetColumnHeaders(int width)
@@ -260,6 +263,45 @@ namespace GridDisplay
                 {
                     Console.WriteLine($"  Border at ({x},{y}) - {description}: Left invisible={leftShouldBeInvisible}, Current visible={rightShouldBeVisible}");
                 }
+            }
+        }
+        
+        private static void PrintVisibilityMapAsCSV(Grid grid, bool[,] visibilityMap, Point viewerPosition)
+        {
+            // Print header row
+            Console.Write("Y\\X");
+            for (int x = 0; x < Math.Min(grid.Width, 26); x++)
+            {
+                Console.Write($",{x}");
+            }
+            Console.WriteLine();
+            
+            // Print data rows
+            for (int y = 0; y < Math.Min(grid.Height, 27); y++)
+            {
+                Console.Write($"{y}");
+                for (int x = 0; x < Math.Min(grid.Width, 26); x++)
+                {
+                    string cellValue;
+                    if (x == viewerPosition.X && y == viewerPosition.Y)
+                    {
+                        cellValue = "V";
+                    }
+                    else if (grid.GetCell(x, y).Blocked)
+                    {
+                        cellValue = "X";
+                    }
+                    else if (visibilityMap[x, y])
+                    {
+                        cellValue = "1";
+                    }
+                    else
+                    {
+                        cellValue = "0";
+                    }
+                    Console.Write($",{cellValue}");
+                }
+                Console.WriteLine();
             }
         }
     }
