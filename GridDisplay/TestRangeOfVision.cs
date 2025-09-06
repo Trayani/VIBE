@@ -356,8 +356,15 @@ namespace GridDisplay
             rangeOfVision.EnableDebug = true;
             var visibilityMap = rangeOfVision.CalculateVisibility(viewerPosition);
             
-            Console.WriteLine("\nCase 2 Grid with visibility (V=viewer, X=obstacle, .=visible, !=not visible):");
+            Console.WriteLine("\nCase 2 Grid with visibility (V=viewer, X=obstacle, .=visible, !=not visible, ?=difference):");
             Console.WriteLine("    " + string.Join("", GetColumnHeaders(grid.Width)));
+            
+            // Convert expectedInvisible list to a HashSet for O(1) lookup
+            var expectedInvisibleSet = new HashSet<(int, int)>();
+            foreach (var point in expectedInvisible)
+            {
+                expectedInvisibleSet.Add((point.X, point.Y));
+            }
             
             for (int y = 0; y < Math.Min(grid.Height, 27); y++)
             {
@@ -372,20 +379,34 @@ namespace GridDisplay
                     {
                         Console.Write("X ");
                     }
-                    else if (visibilityMap[x, y])
-                    {
-                        Console.Write(". ");
-                    }
                     else
                     {
-                        Console.Write("! ");
+                        bool isVisible = visibilityMap[x, y];
+                        bool shouldBeInvisible = expectedInvisibleSet.Contains((x, y));
+                        
+                        if (isVisible && shouldBeInvisible)
+                        {
+                            Console.Write("? "); // Should be invisible but is visible
+                        }
+                        else if (!isVisible && !shouldBeInvisible && !grid.GetCell(x, y).Blocked)
+                        {
+                            Console.Write("? "); // Should be visible but is invisible
+                        }
+                        else if (isVisible)
+                        {
+                            Console.Write(". ");
+                        }
+                        else
+                        {
+                            Console.Write("! ");
+                        }
                     }
                 }
                 Console.WriteLine();
             }
             
-            Console.WriteLine("\nCase 2 CSV Output:");
-            PrintVisibilityMapAsCSV(grid, visibilityMap, viewerPosition);
+            Console.WriteLine("\nCase 2 CSV Output (with differences marked as ?):");
+            PrintCase2CSVWithDifferences(grid, visibilityMap, viewerPosition, expectedInvisibleSet);
             
             // Test some specific cells from case2.csv
             Console.WriteLine("\nCase 2 Visibility Tests:");
@@ -458,6 +479,59 @@ namespace GridDisplay
             }
             
             return (obstacles, expectedInvisible);
+        }
+        
+        private static void PrintCase2CSVWithDifferences(Grid grid, bool[,] visibilityMap, Point viewerPosition, HashSet<(int, int)> expectedInvisibleSet)
+        {
+            // Print header row
+            Console.Write("Y\\X");
+            for (int x = 0; x < Math.Min(grid.Width, 26); x++)
+            {
+                Console.Write($",{x}");
+            }
+            Console.WriteLine();
+            
+            // Print data rows
+            for (int y = 0; y < Math.Min(grid.Height, 27); y++)
+            {
+                Console.Write($"{y}");
+                for (int x = 0; x < Math.Min(grid.Width, 26); x++)
+                {
+                    string cellValue;
+                    if (x == viewerPosition.X && y == viewerPosition.Y)
+                    {
+                        cellValue = "V";
+                    }
+                    else if (grid.GetCell(x, y).Blocked)
+                    {
+                        cellValue = "X";
+                    }
+                    else
+                    {
+                        bool isVisible = visibilityMap[x, y];
+                        bool shouldBeInvisible = expectedInvisibleSet.Contains((x, y));
+                        
+                        if (isVisible && shouldBeInvisible)
+                        {
+                            cellValue = "?"; // Should be invisible but is visible - DIFFERENCE!
+                        }
+                        else if (!isVisible && !shouldBeInvisible)
+                        {
+                            cellValue = "?"; // Should be visible but is invisible - DIFFERENCE!
+                        }
+                        else if (isVisible)
+                        {
+                            cellValue = "1"; // Correctly visible
+                        }
+                        else
+                        {
+                            cellValue = "0"; // Correctly invisible
+                        }
+                    }
+                    Console.Write($",{cellValue}");
+                }
+                Console.WriteLine();
+            }
         }
     }
 }

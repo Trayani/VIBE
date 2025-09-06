@@ -1,6 +1,6 @@
 {
   "fileName": "case2",
-  "timestamp": "2025-09-06T13:52:33.675Z",
+  "timestamp": "2025-09-06T15:24:45.835Z",
   "version": "1.0",
   "colors": {
     "4,10": "#ff9999",
@@ -68,9 +68,9 @@
       "endSnap": {
         "x": 710.5,
         "y": 190.5,
+        "type": "corner",
         "row": 4,
-        "col": 11,
-        "type": "corner"
+        "col": 11
       }
     },
     {

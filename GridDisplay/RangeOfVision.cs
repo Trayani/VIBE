@@ -86,22 +86,69 @@ namespace GridDisplay
             int dx = x - viewerPosition.X;
             int dy = y - viewerPosition.Y;
             
-            // Handle horizontal shadows (same Y level as viewer)
-            if (dy == 0)
+            // Special handling for obstacles on same Y level as viewer
+            Vector2 obstaclePos = cone.ObstaclePosition;
+            if ((int)obstaclePos.Y == viewerPosition.Y)
             {
-                // For horizontal obstacles, check if target is directly behind obstacle
-                Vector2 obstaclePos = cone.ObstaclePosition;
                 int obstacleDx = (int)obstaclePos.X - viewerPosition.X;
                 
-                // Shadow extends horizontally from obstacle
-                if (obstacleDx > 0 && dx > obstacleDx) // Obstacle to the right, target further right
+                // For same row as obstacle (dy == 0)
+                if (dy == 0)
                 {
-                    return true;
+                    // Shadow extends horizontally from obstacle
+                    if (obstacleDx > 0 && dx > obstacleDx) // Obstacle to the right, target further right
+                    {
+                        return true;
+                    }
+                    else if (obstacleDx < 0 && dx < obstacleDx) // Obstacle to the left, target further left
+                    {
+                        return true;
+                    }
+                    return false;
                 }
-                else if (obstacleDx < 0 && dx < obstacleDx) // Obstacle to the left, target further left
+                
+                // For rows above/below obstacle when obstacle is on same Y as viewer
+                // The shadow point is at (obstacleX-1, obstacleY+/-1) based on which row we're checking
+                if (obstacleDx > 0) // Obstacle is to the right of viewer (e.g., obstacle at 20,2 viewer at 3,2)
                 {
-                    return true;
+                    // Shadow point for row above (y=3) is at (obstacleX-1, obstacleY+1) = (19,3)
+                    // Shadow point for row below (y=1) is at (obstacleX-1, obstacleY-1) = (19,1)
+                    int shadowPointX = (int)obstaclePos.X - 1;
+                    
+                    // Calculate the shadow expansion vector from viewer to shadow point
+                    // For viewer at (3,2), obstacle at (20,2), shadow point at (19,3) for row above
+                    // Shadow vector = (19-3, 3-2) = (16, 1) for row above
+                    // Shadow vector = (19-3, 1-2) = (16, -1) for row below
+                    int shadowDx = shadowPointX - viewerPosition.X; // e.g., 19 - 3 = 16
+                    // shadowDy is simply dy (1 for row above, -1 for row below)
+                    
+                    // The shadow starts right after the shadow point (at X=20 for row 3)
+                    // Everything from X=20 onwards is in shadow for row 3
+                    if (x > shadowPointX)
+                    {
+                        return true;
+                    }
                 }
+                else if (obstacleDx < 0) // Obstacle is to the left of viewer
+                {
+                    // Shadow point for row above is at (obstacleX+1, obstacleY+1)
+                    // Shadow point for row below is at (obstacleX+1, obstacleY-1)
+                    int shadowPointX = (int)obstaclePos.X + 1;
+                    
+                    // Everything before the shadow point is in shadow
+                    if (x < shadowPointX)
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            // Handle normal diagonal shadows (obstacle not on same Y level)
+            if (dy == 0)
+            {
+                // Target is on same Y level as viewer but obstacle is not
+                // This shouldn't cast shadow on the viewer's row
                 return false;
             }
             

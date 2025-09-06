@@ -7,7 +7,7 @@ namespace GridDisplay
         [STAThread]
         static void Main(string[] args)
         {
-            if (args.Length > 0 && args[0] == "test")
+            if (args.Length > 0 && (args[0] == "test" || args[0] == "TestRangeOfVision"))
             {
                 TestRangeOfVision.RunTest();
             }
