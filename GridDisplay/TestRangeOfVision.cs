@@ -26,6 +26,7 @@ namespace GridDisplay
             Point viewerPosition = new Point(12, 10);
             
             var rangeOfVision = new RangeOfVision(grid);
+            rangeOfVision.EnableDebug = true;
             var visibilityMap = rangeOfVision.CalculateVisibility(viewerPosition);
             
             // Define expected invisible cells based on case1.txt
@@ -172,16 +173,20 @@ namespace GridDisplay
             }
             
             Console.WriteLine("\nTest cases from case1.txt:");
-            Console.WriteLine("Right border progression (based on 13:15): ");
+            Console.WriteLine("Obstacle at (14,14), Viewer at (12,10)");
+            Console.WriteLine("Right border (DL corner): (13,15) - diff (1,5)");
+            Console.WriteLine("Left border (UR corner): (15,13) - diff (3,3)");
+            
+            Console.WriteLine("\nRight border progression (based on 13:15 with diff 1:5): ");
             CheckCoordinateProgression(12, 10, 1, 5, 14, 20, visibilityMap);
             CheckCoordinateProgression(12, 10, 1, 5, 15, 25, visibilityMap);
             
-            Console.WriteLine("\nLeft border progression (based on 15:13): ");
+            Console.WriteLine("\nLeft border progression (based on 15:13 with diff 3:3): ");
             CheckBorderPoint(15, 13, visibilityMap, "Left border start");
-            CheckBorderPoint(17, 16, visibilityMap, "Left border at 17:16");
-            CheckBorderPoint(19, 19, visibilityMap, "Left border at 19:19");
-            CheckBorderPoint(21, 22, visibilityMap, "Left border at 21:22");
-            CheckBorderPoint(23, 25, visibilityMap, "Left border at 23:25");
+            CheckBorderPoint(18, 16, visibilityMap, "Left border at 18:16 (15+3, 13+3)");
+            CheckBorderPoint(21, 19, visibilityMap, "Left border at 21:19 (15+6, 13+6)");
+            CheckBorderPoint(24, 22, visibilityMap, "Left border at 24:22 (15+9, 13+9)");
+            CheckBorderPoint(27, 25, visibilityMap, "Left border at 27:25 (15+12, 13+12)");
         }
         
         private static string[] GetColumnHeaders(int width)

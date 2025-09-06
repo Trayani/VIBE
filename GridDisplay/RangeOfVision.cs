@@ -9,11 +9,13 @@ namespace GridDisplay
         private Grid grid;
         private Point viewerPosition;
         private bool[,] visibilityMap;
+        public bool EnableDebug { get; set; }
         
         public RangeOfVision(Grid grid)
         {
             this.grid = grid;
             this.visibilityMap = new bool[grid.Width, grid.Height];
+            EnableDebug = false;
         }
         
         public bool[,] CalculateVisibility(Point viewer)
@@ -50,7 +52,15 @@ namespace GridDisplay
                     {
                         var newCone = CreateShadowCone(x, y);
                         if (newCone != null)
+                        {
+                            if (EnableDebug)
+                            {
+                                Console.WriteLine($"Obstacle at ({x},{y}), creating shadow cone:");
+                                Console.WriteLine($"  Left border diff: ({newCone.LeftBorderDiff.X},{newCone.LeftBorderDiff.Y})");
+                                Console.WriteLine($"  Right border diff: ({newCone.RightBorderDiff.X},{newCone.RightBorderDiff.Y})");
+                            }
                             shadowCones.Add(newCone);
+                        }
                     }
                 }
             }
@@ -98,54 +108,69 @@ namespace GridDisplay
             if (vx == obstacleX && vy == obstacleY)
                 return null;
             
-            Vector2 leftBorder, rightBorder;
+            Vector2 leftBorderPoint, rightBorderPoint;
+            
+            // Determine which cells adjacent to the obstacle define the shadow borders
+            // The shadow starts from cells that are just outside the obstacle but block the view
             
             if (vx < obstacleX && vy < obstacleY)
             {
-                rightBorder = new Vector2(obstacleX - vx, obstacleY + 1 - vy);
-                leftBorder = new Vector2(obstacleX + 1 - vx, obstacleY - vy);
+                // Viewer is up-left from obstacle
+                // Right border passes through cell to the left and below obstacle
+                // Left border passes through cell to the right and above obstacle
+                rightBorderPoint = new Vector2(obstacleX - 1, obstacleY + 1);
+                leftBorderPoint = new Vector2(obstacleX + 1, obstacleY - 1);
             }
             else if (vx > obstacleX && vy < obstacleY)
             {
-                leftBorder = new Vector2(obstacleX - vx, obstacleY + 1 - vy);
-                rightBorder = new Vector2(obstacleX + 1 - vx, obstacleY - vy);
+                // Viewer is up-right from obstacle
+                leftBorderPoint = new Vector2(obstacleX - 1, obstacleY + 1);
+                rightBorderPoint = new Vector2(obstacleX + 1, obstacleY - 1);
             }
             else if (vx < obstacleX && vy > obstacleY)
             {
-                leftBorder = new Vector2(obstacleX - vx, obstacleY - vy);
-                rightBorder = new Vector2(obstacleX + 1 - vx, obstacleY + 1 - vy);
+                leftBorderPoint = new Vector2(obstacleX - 1, obstacleY - 1);
+                rightBorderPoint = new Vector2(obstacleX + 1, obstacleY + 1);
             }
             else if (vx > obstacleX && vy > obstacleY)
             {
-                rightBorder = new Vector2(obstacleX - vx, obstacleY - vy);
-                leftBorder = new Vector2(obstacleX + 1 - vx, obstacleY + 1 - vy);
+                rightBorderPoint = new Vector2(obstacleX - 1, obstacleY - 1);
+                leftBorderPoint = new Vector2(obstacleX + 1, obstacleY + 1);
             }
             else if (vx == obstacleX)
             {
                 if (vy < obstacleY)
                 {
-                    leftBorder = new Vector2(obstacleX + 1 - vx, obstacleY + 1 - vy);
-                    rightBorder = new Vector2(obstacleX - vx, obstacleY + 1 - vy);
+                    // Viewer is directly above obstacle
+                    leftBorderPoint = new Vector2(obstacleX + 1, obstacleY + 1);
+                    rightBorderPoint = new Vector2(obstacleX - 1, obstacleY + 1);
                 }
                 else
                 {
-                    leftBorder = new Vector2(obstacleX - vx, obstacleY - vy);
-                    rightBorder = new Vector2(obstacleX + 1 - vx, obstacleY - vy);
+                    // Viewer is directly below obstacle
+                    leftBorderPoint = new Vector2(obstacleX - 1, obstacleY - 1);
+                    rightBorderPoint = new Vector2(obstacleX + 1, obstacleY - 1);
                 }
             }
-            else
+            else // vy == obstacleY
             {
                 if (vx < obstacleX)
                 {
-                    leftBorder = new Vector2(obstacleX + 1 - vx, obstacleY - vy);
-                    rightBorder = new Vector2(obstacleX + 1 - vx, obstacleY + 1 - vy);
+                    // Viewer is directly to the left of obstacle
+                    leftBorderPoint = new Vector2(obstacleX + 1, obstacleY - 1);
+                    rightBorderPoint = new Vector2(obstacleX + 1, obstacleY + 1);
                 }
                 else
                 {
-                    rightBorder = new Vector2(obstacleX - vx, obstacleY - vy);
-                    leftBorder = new Vector2(obstacleX - vx, obstacleY + 1 - vy);
+                    // Viewer is directly to the right of obstacle
+                    rightBorderPoint = new Vector2(obstacleX - 1, obstacleY - 1);
+                    leftBorderPoint = new Vector2(obstacleX - 1, obstacleY + 1);
                 }
             }
+            
+            // Calculate the coordinate differences
+            Vector2 leftBorder = leftBorderPoint - new Vector2(vx, vy);
+            Vector2 rightBorder = rightBorderPoint - new Vector2(vx, vy);
             
             return new ShadowCone
             {
