@@ -6,6 +6,18 @@ using System.Collections.Generic;
 
 namespace GridDisplay
 {
+    public struct ShadowLine
+    {
+        public Vector2 Start;
+        public Vector2 End;
+        
+        public ShadowLine(Vector2 start, Vector2 end)
+        {
+            Start = start;
+            End = end;
+        }
+    }
+
     public class GridGame : Game
     {
         private GraphicsDeviceManager graphics;
@@ -30,6 +42,7 @@ namespace GridDisplay
         private const float minZoom = 0.25f;
         private const float maxZoom = 4.0f;
         private const float zoomStep = 0.1f;
+        private List<ShadowLine> currentShadowLines = new List<ShadowLine>();
 
         public GridGame()
         {
@@ -293,6 +306,12 @@ namespace GridDisplay
             Matrix transformMatrix = Matrix.CreateScale(zoomLevel) * Matrix.CreateTranslation(0, 0, 0);
             spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, null, null, null, null, transformMatrix);
             
+            // First calculate shadow lines if visibility cone is active
+            if (visibilityCone != null && visibilityCone.IsActive)
+            {
+                CalculateShadowLines();
+            }
+            
             grid.Draw(spriteBatch, pixelTexture, cameraOffset, IsCellVisibleInCone);
             
             // Draw start cell indicator
@@ -334,7 +353,7 @@ namespace GridDisplay
             if (visibilityCone != null && visibilityCone.IsActive)
             {
                 DrawVisibilityCone(spriteBatch, pixelTexture);
-                DrawShadowEdges(spriteBatch, pixelTexture);
+                DrawShadowLines(spriteBatch, pixelTexture);
             }
             
             spriteBatch.End();
@@ -926,7 +945,22 @@ namespace GridDisplay
             if (!HasLineOfSight(focusPoint, cellCenter))
                 return false;
             
-            // All corners are within the arc and radius, and there's line of sight
+            // Check if any shadow lines intersect with this cell
+            Vector2 cellTopLeft = new Vector2(
+                cellX * grid.CellSizeX + cameraOffset.X,
+                cellY * grid.CellSizeY + cameraOffset.Y
+            );
+            Vector2 cellBottomRight = cellTopLeft + new Vector2(grid.CellSizeX, grid.CellSizeY);
+            
+            foreach (ShadowLine shadowLine in currentShadowLines)
+            {
+                if (LineIntersectsRectangle(shadowLine.Start, shadowLine.End, cellTopLeft, cellBottomRight))
+                {
+                    return false; // Cell is intersected by a shadow line, so it's not completely visible
+                }
+            }
+            
+            // All corners are within the arc and radius, line of sight is clear, and no shadow intersections
             return true;
         }
         
@@ -1061,8 +1095,25 @@ namespace GridDisplay
             return blockedCells;
         }
         
-        private void DrawShadowEdges(SpriteBatch spriteBatch, Texture2D pixelTexture)
+        private void DrawShadowLines(SpriteBatch spriteBatch, Texture2D pixelTexture)
         {
+            if (visibilityCone == null || !visibilityCone.IsActive)
+                return;
+            
+            Color shadowLineColor = new Color(20, 20, 20); // Very dark gray, almost black
+            
+            // Draw all calculated shadow lines
+            foreach (ShadowLine shadowLine in currentShadowLines)
+            {
+                DrawLine(spriteBatch, pixelTexture, shadowLine.Start, shadowLine.End, shadowLineColor, 2);
+            }
+        }
+        
+        private void CalculateShadowLines()
+        {
+            // Clear previous shadow lines
+            currentShadowLines.Clear();
+            
             if (visibilityCone == null || !visibilityCone.IsActive)
                 return;
             
@@ -1079,9 +1130,7 @@ namespace GridDisplay
             float rightAngle = (float)Math.Atan2(rightPoint.Y - focusPoint.Y, rightPoint.X - focusPoint.X);
             if (rightAngle < leftAngle) rightAngle += (float)(2 * Math.PI);
             
-            Color shadowLineColor = new Color(20, 20, 20); // Very dark gray, almost black
-            
-            // Process blocked cells with proper edge shadow casting
+            // Process blocked cells to generate shadow lines
             for (int x = 0; x < grid.Width; x++)
             {
                 for (int y = 0; y < grid.Height; y++)
@@ -1104,7 +1153,7 @@ namespace GridDisplay
                         if (cellAngle < leftAngle || cellAngle > rightAngle)
                             continue;
                         
-                        // Calculate proper shadow casting corners based on focus position
+                        // Calculate proper shadow casting corners (using your logic)
                         Vector2 toCell = cellCenter - focusPoint;
                         
                         // Define all four corners
@@ -1115,7 +1164,7 @@ namespace GridDisplay
                         
                         Vector2 shadowCastPoint1, shadowCastPoint2;
 
-                        // Determine which corners to cast shadows from based on focus position
+                        // Using your corrected shadow point logic
                         if (toCell.X == 0) {
                             if (toCell.Y > 0) {
                                 shadowCastPoint1 = bottomRight;
@@ -1134,41 +1183,63 @@ namespace GridDisplay
                                 shadowCastPoint1 = topRight;
                                 shadowCastPoint2 = bottomRight;
                             }
-                            
                         } 
-                        else if (toCell.X > 0 && toCell.Y > 0) // Focus is up-left of cell (cell is down-right of focus)
-                        {
-                            shadowCastPoint1 = topRight;     // Cast from top-left corner
-                            shadowCastPoint2 = bottomLeft; // Cast from bottom-right corner
+                        else if (toCell.X > 0 && toCell.Y > 0) {
+                            shadowCastPoint1 = topRight;
+                            shadowCastPoint2 = bottomLeft;
                         }
-                        else if (toCell.X < 0 && toCell.Y > 0) // Focus is up-right of cell (cell is down-left of focus)
-                        {
-                            shadowCastPoint1 = topLeft;    // Cast from top-right corner
-                            shadowCastPoint2 = bottomRight;  // Cast from bottom-left corner
+                        else if (toCell.X < 0 && toCell.Y > 0) {
+                            shadowCastPoint1 = topLeft;
+                            shadowCastPoint2 = bottomRight;
                         }
-                        else if (toCell.X > 0 && toCell.Y < 0) // Focus is down-left of cell (cell is up-right of focus)
-                        {
-                            shadowCastPoint1 = bottomRight;  // Cast from bottom-left corner
-                            shadowCastPoint2 = topLeft;    // Cast from top-right corner
+                        else if (toCell.X > 0 && toCell.Y < 0) {
+                            shadowCastPoint1 = bottomRight;
+                            shadowCastPoint2 = topLeft;
                         }
-                        else // Focus is down-right of cell (toCell.X < 0 && toCell.Y < 0)
-                        {
-                            shadowCastPoint1 = bottomLeft; // Cast from bottom-right corner
-                            shadowCastPoint2 = topRight;     // Cast from top-left corner
+                        else {
+                            shadowCastPoint1 = bottomLeft;
+                            shadowCastPoint2 = topRight;
                         }
                         
-                        // Cast shadows from both edge points
+                        // Calculate shadow endpoints
                         Vector2 direction1 = Vector2.Normalize(shadowCastPoint1 - focusPoint);
                         Vector2 direction2 = Vector2.Normalize(shadowCastPoint2 - focusPoint);
                         
                         Vector2 shadowEnd1 = focusPoint + direction1 * maxRadius;
                         Vector2 shadowEnd2 = focusPoint + direction2 * maxRadius;
                         
-                        DrawLine(spriteBatch, pixelTexture, shadowCastPoint1, shadowEnd1, shadowLineColor, 2);
-                        DrawLine(spriteBatch, pixelTexture, shadowCastPoint2, shadowEnd2, shadowLineColor, 2);
+                        // Store shadow lines for visibility checking
+                        currentShadowLines.Add(new ShadowLine(shadowCastPoint1, shadowEnd1));
+                        currentShadowLines.Add(new ShadowLine(shadowCastPoint2, shadowEnd2));
                     }
                 }
             }
+        }
+        
+        private bool LineIntersectsRectangle(Vector2 lineStart, Vector2 lineEnd, Vector2 rectTopLeft, Vector2 rectBottomRight)
+        {
+            // Check if line intersects with any of the four rectangle edges
+            Vector2 rectTopRight = new Vector2(rectBottomRight.X, rectTopLeft.Y);
+            Vector2 rectBottomLeft = new Vector2(rectTopLeft.X, rectBottomRight.Y);
+            
+            return LineIntersectsLine(lineStart, lineEnd, rectTopLeft, rectTopRight) ||      // Top edge
+                   LineIntersectsLine(lineStart, lineEnd, rectTopRight, rectBottomRight) || // Right edge
+                   LineIntersectsLine(lineStart, lineEnd, rectBottomRight, rectBottomLeft) || // Bottom edge
+                   LineIntersectsLine(lineStart, lineEnd, rectBottomLeft, rectTopLeft);      // Left edge
+        }
+        
+        private bool LineIntersectsLine(Vector2 p1, Vector2 p2, Vector2 p3, Vector2 p4)
+        {
+            // Line intersection using parametric form
+            float denom = (p1.X - p2.X) * (p3.Y - p4.Y) - (p1.Y - p2.Y) * (p3.X - p4.X);
+            
+            if (Math.Abs(denom) < 1e-10) // Lines are parallel
+                return false;
+            
+            float t = ((p1.X - p3.X) * (p3.Y - p4.Y) - (p1.Y - p3.Y) * (p3.X - p4.X)) / denom;
+            float u = -((p1.X - p2.X) * (p1.Y - p3.Y) - (p1.Y - p2.Y) * (p1.X - p3.X)) / denom;
+            
+            return t >= 0 && t <= 1 && u >= 0 && u <= 1;
         }
         
         private void DrawControlsWindow(SpriteBatch spriteBatch, Texture2D pixelTexture)
