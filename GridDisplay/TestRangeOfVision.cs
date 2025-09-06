@@ -352,6 +352,20 @@ namespace GridDisplay
             
             Point viewerPosition = new Point(3, 2); // V at (3,2)
             
+            Console.WriteLine($"\nViewer position: ({viewerPosition.X},{viewerPosition.Y})");
+            Console.WriteLine("Detected obstacles:");
+            for (int y = 0; y < grid.Height; y++)
+            {
+                for (int x = 0; x < grid.Width; x++)
+                {
+                    var cell = grid.GetCell(x, y);
+                    if (cell != null && cell.Blocked)
+                    {
+                        Console.WriteLine($"  Obstacle at ({x},{y})");
+                    }
+                }
+            }
+            
             var rangeOfVision = new RangeOfVision(grid);
             rangeOfVision.EnableDebug = true;
             var visibilityMap = rangeOfVision.CalculateVisibility(viewerPosition);
@@ -453,6 +467,7 @@ namespace GridDisplay
                         {
                             expectedInvisible.Add(new Point(x - 1, y));
                         }
+                        // Ignore cells marked with '?' - do not test these
                     }
                 }
             }

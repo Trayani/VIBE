@@ -85,12 +85,18 @@ namespace GridDisplay
             
             int dx = x - viewerPosition.X;
             int dy = y - viewerPosition.Y;
+            Vector2 obstaclePos = cone.ObstaclePosition;
+            
+            if (EnableDebug && (x >= 20 && x <= 25 && y == 3))
+            {
+                Console.WriteLine($"Checking cell ({x},{y}) against cone from ({obstaclePos.X},{obstaclePos.Y})");
+                Console.WriteLine($"  dx={dx}, dy={dy}, LeftDiff=({cone.LeftBorderDiff.X},{cone.LeftBorderDiff.Y}), RightDiff=({cone.RightBorderDiff.X},{cone.RightBorderDiff.Y})");
+            }
             
             // Handle horizontal shadows (same Y level as viewer)
             if (dy == 0)
             {
                 // For horizontal obstacles, check if target is directly behind obstacle
-                Vector2 obstaclePos = cone.ObstaclePosition;
                 int obstacleDx = (int)obstaclePos.X - viewerPosition.X;
                 
                 // Shadow extends horizontally from obstacle
@@ -105,29 +111,188 @@ namespace GridDisplay
                 return false;
             }
             
-            if ((dy > 0) != (cone.LeftBorderDiff.Y > 0))
+            // For horizontal obstacles (same Y as viewer), we need special handling
+            // The obstacle can cast shadows both above and below itself
+            bool isHorizontalObstacle = Math.Abs(obstaclePos.Y - viewerPosition.Y) < 0.1f;
+            
+            if (isHorizontalObstacle)
+            {
+                // For horizontal obstacles, check if the cell is directly behind the obstacle
+                // relative to the viewer's position
+                int viewerToObstacleX = (int)obstaclePos.X - viewerPosition.X;
+                int viewerToCellX = x - viewerPosition.X;
+                
+                // If cell is further from viewer than obstacle in the same direction
+                // and within reasonable vertical range, it should be in shadow
+                bool sameDirection = (viewerToObstacleX > 0 && viewerToCellX > 0) || 
+                                   (viewerToObstacleX < 0 && viewerToCellX < 0);
+                bool furtherThanObstacle = Math.Abs(viewerToCellX) >= Math.Abs(viewerToObstacleX);
+                bool reasonableVerticalRange = Math.Abs(dy) <= 3; // Within 3 cells vertically
+                
+                if (EnableDebug && (x >= 20 && x <= 25 && y == 3))
+                {
+                    Console.WriteLine($"  Horizontal obstacle check: sameDirection={sameDirection}, furtherThanObstacle={furtherThanObstacle}, reasonableVerticalRange={reasonableVerticalRange}");
+                    Console.WriteLine($"  viewerToObstacleX={viewerToObstacleX}, viewerToCellX={viewerToCellX}");
+                }
+                
+                if (sameDirection && furtherThanObstacle && reasonableVerticalRange)
+                {
+                    if (EnableDebug && (x >= 20 && x <= 25 && y == 3))
+                    {
+                        Console.WriteLine($"  Cell is directly behind horizontal obstacle, returning true");
+                    }
+                    return true;
+                }
+                
+                // Otherwise continue with normal shadow cone logic
+                bool leftBorderValid = cone.LeftBorderDiff.Y != 0;
+                bool rightBorderValid = cone.RightBorderDiff.Y != 0;
+                
+                if (EnableDebug && (x >= 20 && x <= 25 && y == 3))
+                {
+                    Console.WriteLine($"  Horizontal obstacle cone check: leftBorderValid={leftBorderValid}, rightBorderValid={rightBorderValid}");
+                }
+                
+                if (!leftBorderValid && !rightBorderValid)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                // For non-horizontal obstacles, use original logic
+                bool leftBorderValid = (dy > 0) == (cone.LeftBorderDiff.Y > 0);
+                bool rightBorderValid = (dy > 0) == (cone.RightBorderDiff.Y > 0);
+                
+                if (EnableDebug && (x >= 20 && x <= 25 && y == 3))
+                {
+                    Console.WriteLine($"  Non-horizontal: leftBorderValid={leftBorderValid}, rightBorderValid={rightBorderValid}");
+                }
+                
+                if (!leftBorderValid && !rightBorderValid)
+                {
+                    if (EnableDebug && (x >= 20 && x <= 25 && y == 3))
+                    {
+                        Console.WriteLine($"  Neither border valid, returning false");
+                    }
+                    return false;
+                }
+            }
+            
+            // Calculate border positions
+            float minX = float.MaxValue;
+            float maxX = float.MinValue;
+            
+            if (isHorizontalObstacle)
+            {
+                // For horizontal obstacles, both borders contribute to shadow width
+                if (cone.LeftBorderDiff.Y != 0)
+                {
+                    float xAtYLeft = viewerPosition.X + (cone.LeftBorderDiff.X * (float)dy / cone.LeftBorderDiff.Y);
+                    minX = Math.Min(minX, xAtYLeft);
+                    maxX = Math.Max(maxX, xAtYLeft);
+                    if (EnableDebug && (x >= 20 && x <= 25 && y == 3))
+                    {
+                        Console.WriteLine($"  Left border: xAtYLeft={xAtYLeft}");
+                    }
+                }
+                
+                if (cone.RightBorderDiff.Y != 0)
+                {
+                    float xAtYRight = viewerPosition.X + (cone.RightBorderDiff.X * (float)dy / cone.RightBorderDiff.Y);
+                    minX = Math.Min(minX, xAtYRight);
+                    maxX = Math.Max(maxX, xAtYRight);
+                    if (EnableDebug && (x >= 20 && x <= 25 && y == 3))
+                    {
+                        Console.WriteLine($"  Right border: xAtYRight={xAtYRight}");
+                    }
+                }
+            }
+            else
+            {
+                // For non-horizontal obstacles, use validation flags
+                bool leftBorderValid = (dy > 0) == (cone.LeftBorderDiff.Y > 0);
+                bool rightBorderValid = (dy > 0) == (cone.RightBorderDiff.Y > 0);
+                
+                if (leftBorderValid && cone.LeftBorderDiff.Y != 0)
+                {
+                    float xAtYLeft = viewerPosition.X + (cone.LeftBorderDiff.X * (float)dy / cone.LeftBorderDiff.Y);
+                    minX = Math.Min(minX, xAtYLeft);
+                    maxX = Math.Max(maxX, xAtYLeft);
+                }
+                
+                if (rightBorderValid && cone.RightBorderDiff.Y != 0)
+                {
+                    float xAtYRight = viewerPosition.X + (cone.RightBorderDiff.X * (float)dy / cone.RightBorderDiff.Y);
+                    minX = Math.Min(minX, xAtYRight);
+                    maxX = Math.Max(maxX, xAtYRight);
+                }
+            }
+            
+            // If no valid borders, return false
+            if (minX == float.MaxValue)
                 return false;
-            
-            // Make shadows more conservative - include more cells in shadow
-            float xAtYLeft = viewerPosition.X + (cone.LeftBorderDiff.X * (float)dy / cone.LeftBorderDiff.Y);
-            float xAtYRight = viewerPosition.X + (cone.RightBorderDiff.X * (float)dy / cone.RightBorderDiff.Y);
-            
-            float minX = Math.Min(xAtYLeft, xAtYRight);
-            float maxX = Math.Max(xAtYLeft, xAtYRight);
             
             // More conservative shadow - include cells that are close to borders
             // This makes the shadow cover upper and lower lines as well
             
             // Check if this cell lies exactly on either border line (should be visible)
             const float borderTolerance = 0.1f;
-            if (Math.Abs(x - xAtYLeft) < borderTolerance || Math.Abs(x - xAtYRight) < borderTolerance)
+            bool onBorder = false;
+            
+            if (isHorizontalObstacle)
+            {
+                // For horizontal obstacles, check borders without validation flags
+                if (cone.LeftBorderDiff.Y != 0)
+                {
+                    float xAtYLeft = viewerPosition.X + (cone.LeftBorderDiff.X * (float)dy / cone.LeftBorderDiff.Y);
+                    if (Math.Abs(x - xAtYLeft) < borderTolerance)
+                        onBorder = true;
+                }
+                
+                if (cone.RightBorderDiff.Y != 0)
+                {
+                    float xAtYRight = viewerPosition.X + (cone.RightBorderDiff.X * (float)dy / cone.RightBorderDiff.Y);
+                    if (Math.Abs(x - xAtYRight) < borderTolerance)
+                        onBorder = true;
+                }
+            }
+            else
+            {
+                // For non-horizontal obstacles, use validation flags
+                bool leftBorderValid = (dy > 0) == (cone.LeftBorderDiff.Y > 0);
+                bool rightBorderValid = (dy > 0) == (cone.RightBorderDiff.Y > 0);
+                
+                if (leftBorderValid && cone.LeftBorderDiff.Y != 0)
+                {
+                    float xAtYLeft = viewerPosition.X + (cone.LeftBorderDiff.X * (float)dy / cone.LeftBorderDiff.Y);
+                    if (Math.Abs(x - xAtYLeft) < borderTolerance)
+                        onBorder = true;
+                }
+                
+                if (rightBorderValid && cone.RightBorderDiff.Y != 0)
+                {
+                    float xAtYRight = viewerPosition.X + (cone.RightBorderDiff.X * (float)dy / cone.RightBorderDiff.Y);
+                    if (Math.Abs(x - xAtYRight) < borderTolerance)
+                        onBorder = true;
+                }
+            }
+            
+            if (onBorder)
             {
                 return false; // Border cells are visible
             }
             
             // Expand shadow area conservatively but not too much to preserve border visibility
             const float expansionTolerance = 0.75f;
-            return x >= minX - expansionTolerance && x <= maxX + expansionTolerance;
+            bool inShadow = x >= minX - expansionTolerance && x <= maxX + expansionTolerance;
+            
+            if (EnableDebug && (x >= 20 && x <= 25 && y == 3))
+            {
+                Console.WriteLine($"  minX={minX}, maxX={maxX}, x={x}, inShadow={inShadow}");
+            }
+            
+            return inShadow;
         }
         
         private ShadowCone CreateShadowCone(int obstacleX, int obstacleY)
@@ -182,19 +347,24 @@ namespace GridDisplay
                     rightBorderPoint = new Vector2(obstacleX + 1, obstacleY - 1);
                 }
             }
-            else // vy == obstacleY
+            else // vy == obstacleY - same Y level as viewer
             {
                 if (vx < obstacleX)
                 {
                     // Viewer is directly to the left of obstacle
-                    leftBorderPoint = new Vector2(obstacleX + 1, obstacleY - 1);
-                    rightBorderPoint = new Vector2(obstacleX + 1, obstacleY + 1);
+                    // Shadow should extend to the right and create a spreading diagonal cone
+                    // For cells right of obstacle to be blocked, the shadow borders need to 
+                    // extend from the obstacle in the right direction
+                    // The borders should create lines that, when extended, cover cells to the right
+                    leftBorderPoint = new Vector2(obstacleX - 1, obstacleY - 3);   // Point that creates proper top boundary
+                    rightBorderPoint = new Vector2(obstacleX - 1, obstacleY + 3); // Point that creates proper bottom boundary
                 }
                 else
                 {
-                    // Viewer is directly to the right of obstacle
-                    rightBorderPoint = new Vector2(obstacleX - 1, obstacleY - 1);
-                    leftBorderPoint = new Vector2(obstacleX - 1, obstacleY + 1);
+                    // Viewer is directly to the right of obstacle  
+                    // Shadow should extend to the left and create diagonal cone
+                    rightBorderPoint = new Vector2(obstacleX - 3, obstacleY - 2); // Far top-left
+                    leftBorderPoint = new Vector2(obstacleX - 3, obstacleY + 2);  // Far bottom-left
                 }
             }
             
