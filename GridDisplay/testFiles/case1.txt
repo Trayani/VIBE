@@ -14,7 +14,7 @@ next step: 13:15 + 1:5 = 14:20  (for implementation, use interpolation, so 12:10
 Another step is on 15:25
 
 Left side border:
-12:10 - 15:13 - 2:3  so :  15:13 ,  17:16,   19:16  ,   21:19  , 23, 22
+12:10 - 15:13 = 2:3  so :  15:13 ,  17:16,   19:19  ,   21:22  , 23, 25
 
 
 Obviously, left border guards leftest visible cells, while right border rightest.
@@ -43,6 +43,7 @@ But when the row is split by obstacle, do not attempt to calculated the visiblit
 EG: visibility of row 16 is described by (X: 0...13  and 18...25). Both cones have to be calculated independantly of 
 each other. They could even further split (on more complex grid).
 
+ 
 
   
 * ,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25

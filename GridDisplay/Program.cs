@@ -5,10 +5,17 @@ namespace GridDisplay
     public static class Program
     {
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
-            using (var game = new GridGame())
-                game.Run();
+            if (args.Length > 0 && args[0] == "test")
+            {
+                TestRangeOfVision.RunTest();
+            }
+            else
+            {
+                using (var game = new GridGame())
+                    game.Run();
+            }
         }
     }
 }
