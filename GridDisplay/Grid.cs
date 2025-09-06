@@ -53,7 +53,7 @@ namespace GridDisplay
                 cells[x, y] = cell;
         }
 
-        public void Draw(SpriteBatch spriteBatch, Texture2D pixelTexture, Vector2 offset, Func<int, int, bool> isVisibleCallback = null)
+        public void Draw(SpriteBatch spriteBatch, Texture2D pixelTexture, Vector2 offset)
         {
             // Draw cells
             for (int x = 0; x < Width; x++)
@@ -64,42 +64,10 @@ namespace GridDisplay
                     Vector2 position = new Vector2(x * CellSizeX + offset.X, y * CellSizeY + offset.Y);
                     
                     Color cellColor = GetCellColor(cell);
-                    bool isVisible = isVisibleCallback?.Invoke(x, y) ?? false;
-                    
-                    // Apply yellow tint to visible cells
-                    if (isVisible)
-                    {
-                        cellColor = Color.Lerp(cellColor, Color.Yellow, 0.4f);
-                    }
                     
                     spriteBatch.Draw(pixelTexture, 
                         new Rectangle((int)position.X, (int)position.Y, CellSizeX, CellSizeY), 
                         cellColor);
-                    
-                    // Draw orange border for visible cells
-                    if (isVisible)
-                    {
-                        // Draw border as 4 rectangles (top, bottom, left, right)
-                        Color orangeBorder = Color.Orange;
-                        int borderThickness = 1;
-                        
-                        // Top border
-                        spriteBatch.Draw(pixelTexture, 
-                            new Rectangle((int)position.X, (int)position.Y, CellSizeX, borderThickness), 
-                            orangeBorder);
-                        // Bottom border
-                        spriteBatch.Draw(pixelTexture, 
-                            new Rectangle((int)position.X, (int)position.Y + CellSizeY - borderThickness, CellSizeX, borderThickness), 
-                            orangeBorder);
-                        // Left border
-                        spriteBatch.Draw(pixelTexture, 
-                            new Rectangle((int)position.X, (int)position.Y, borderThickness, CellSizeY), 
-                            orangeBorder);
-                        // Right border
-                        spriteBatch.Draw(pixelTexture, 
-                            new Rectangle((int)position.X + CellSizeX - borderThickness, (int)position.Y, borderThickness, CellSizeY), 
-                            orangeBorder);
-                    }
                     
                     
                     DrawThickNumber(spriteBatch, pixelTexture, cell.Height, position + new Vector2(1, 1), Color.Black, 6);

@@ -6,18 +6,6 @@ using System.Collections.Generic;
 
 namespace GridDisplay
 {
-    public struct ShadowLine
-    {
-        public Vector2 Start;
-        public Vector2 End;
-        
-        public ShadowLine(Vector2 start, Vector2 end)
-        {
-            Start = start;
-            End = end;
-        }
-    }
-
     public class GridGame : Game
     {
         private GraphicsDeviceManager graphics;
@@ -33,16 +21,12 @@ namespace GridDisplay
         private int startCellY = 0;
         private int targetCellX = -1;
         private int targetCellY = -1;
-        private VisibilityCone visibilityCone;
-        private bool isDragging = false;
-        private int draggedPointIndex = -1;
         private bool isCameraDragging = false;
         private Vector2 lastCameraDragPosition;
         private float zoomLevel = 1.0f;
         private const float minZoom = 0.25f;
         private const float maxZoom = 4.0f;
         private const float zoomStep = 0.1f;
-        private List<ShadowLine> currentShadowLines = new List<ShadowLine>();
 
         public GridGame()
         {
@@ -240,58 +224,6 @@ namespace GridDisplay
                 }
             }
             
-            // Spawn visibility cone with V key
-            if (keyboardState.IsKeyDown(Keys.V) && !previousKeyboardState.IsKeyDown(Keys.V))
-            {
-                if (visibilityCone == null)
-                {
-                    // Create cone at center of screen
-                    Vector2 centerScreen = new Vector2(GraphicsDevice.Viewport.Width / 2, GraphicsDevice.Viewport.Height / 2);
-                    Vector2 focus = new VisibilityCone().SnapToGrid(centerScreen, cameraOffset, grid.CellSizeX, grid.CellSizeY);
-                    Vector2 leftBorder = new VisibilityCone().SnapToGrid(centerScreen + new Vector2(-100, -50), cameraOffset, grid.CellSizeX, grid.CellSizeY);
-                    Vector2 rightBorder = new VisibilityCone().SnapToGrid(centerScreen + new Vector2(100, -50), cameraOffset, grid.CellSizeX, grid.CellSizeY);
-                    
-                    visibilityCone = new VisibilityCone(focus, leftBorder, rightBorder, cameraOffset);
-                }
-                else
-                {
-                    // Toggle off
-                    visibilityCone = null;
-                    isDragging = false;
-                    draggedPointIndex = -1;
-                }
-            }
-            
-            // Handle cone point dragging (only when not camera dragging)
-            if (visibilityCone != null && visibilityCone.IsActive && !isCameraDragging)
-            {
-                Vector2 mousePosition = ScreenToWorld(new Vector2(mouseState.X, mouseState.Y));
-                
-                if (mouseState.LeftButton == ButtonState.Pressed && previousMouseState.LeftButton == ButtonState.Released)
-                {
-                    // Start dragging if near a cone point
-                    int closestPoint = visibilityCone.GetClosestPoint(mousePosition, cameraOffset);
-                    if (closestPoint >= 0)
-                    {
-                        isDragging = true;
-                        draggedPointIndex = closestPoint;
-                    }
-                }
-                
-                if (isDragging && mouseState.LeftButton == ButtonState.Pressed)
-                {
-                    // Update dragged point position with snapping
-                    Vector2 snappedPos = visibilityCone.SnapToGrid(mousePosition, cameraOffset, grid.CellSizeX, grid.CellSizeY);
-                    visibilityCone.SetPoint(draggedPointIndex, snappedPos, cameraOffset);
-                }
-                
-                if (mouseState.LeftButton == ButtonState.Released)
-                {
-                    isDragging = false;
-                    draggedPointIndex = -1;
-                }
-            }
-            
             previousMouseState = mouseState;
             previousKeyboardState = keyboardState;
             
@@ -306,13 +238,7 @@ namespace GridDisplay
             Matrix transformMatrix = Matrix.CreateScale(zoomLevel) * Matrix.CreateTranslation(0, 0, 0);
             spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, null, null, null, null, transformMatrix);
             
-            // First calculate shadow lines if visibility cone is active
-            if (visibilityCone != null && visibilityCone.IsActive)
-            {
-                CalculateShadowLines();
-            }
-            
-            grid.Draw(spriteBatch, pixelTexture, cameraOffset, IsCellVisibleInCone);
+            grid.Draw(spriteBatch, pixelTexture, cameraOffset);
             
             // Draw start cell indicator
             Vector2 startPos = new Vector2(startCellX * grid.CellSizeX + cameraOffset.X - 2,
@@ -349,12 +275,6 @@ namespace GridDisplay
                     Color.Red * 0.5f);
             }
             
-            // Draw visibility cone
-            if (visibilityCone != null && visibilityCone.IsActive)
-            {
-                DrawVisibilityCone(spriteBatch, pixelTexture);
-                DrawShadowLines(spriteBatch, pixelTexture);
-            }
             
             spriteBatch.End();
             
@@ -765,483 +685,6 @@ namespace GridDisplay
                     };
             }
         }
-        
-        private void DrawVisibilityCone(SpriteBatch spriteBatch, Texture2D pixelTexture)
-        {
-            // Dark purple color
-            Color darkPurple = new Color(75, 0, 130); // Dark purple RGB
-            Color lightPurple = new Color(138, 43, 226); // Lighter purple for hover
-            
-            // Get world coordinates for drawing
-            Vector2 focusPoint = visibilityCone.GetPoint(0, cameraOffset);
-            Vector2 leftBorderPoint = visibilityCone.GetPoint(1, cameraOffset);
-            Vector2 rightBorderPoint = visibilityCone.GetPoint(2, cameraOffset);
-            
-            // Draw lines from focus point to border points
-            DrawLine(spriteBatch, pixelTexture, focusPoint, leftBorderPoint, darkPurple, 3);
-            DrawLine(spriteBatch, pixelTexture, focusPoint, rightBorderPoint, darkPurple, 3);
-            
-            // Draw arc from left border point to right border point around focus point
-            DrawArc(spriteBatch, pixelTexture, focusPoint, leftBorderPoint, rightBorderPoint, darkPurple, 2);
-            
-            // Check for hover on points (convert mouse to world coordinates)
-            Vector2 mousePosition = ScreenToWorld(new Vector2(Mouse.GetState().X, Mouse.GetState().Y));
-            int hoveredPoint = visibilityCone.GetClosestPoint(mousePosition, cameraOffset, 15f / zoomLevel);
-            
-            // Draw the three circular points
-            int pointRadius = 4;
-            
-            for (int i = 0; i < 3; i++)
-            {
-                Vector2 point = visibilityCone.GetPoint(i, cameraOffset);
-                Color pointColor = darkPurple;
-                int currentRadius = pointRadius;
-                
-                // Highlight if hovered or being dragged
-                if (i == hoveredPoint || (isDragging && i == draggedPointIndex))
-                {
-                    pointColor = lightPurple;
-                    currentRadius = pointRadius + 2; // Make it slightly larger
-                }
-                
-                DrawCircle(spriteBatch, pixelTexture, point, currentRadius, pointColor);
-            }
-        }
-        
-        private void DrawCircle(SpriteBatch spriteBatch, Texture2D pixelTexture, Vector2 center, int radius, Color color)
-        {
-            // Draw a filled circle using rectangles
-            for (int x = -radius; x <= radius; x++)
-            {
-                for (int y = -radius; y <= radius; y++)
-                {
-                    if (x * x + y * y <= radius * radius)
-                    {
-                        spriteBatch.Draw(pixelTexture, 
-                            new Rectangle((int)center.X + x, (int)center.Y + y, 1, 1), 
-                            color);
-                    }
-                }
-            }
-        }
-        
-        private void DrawArc(SpriteBatch spriteBatch, Texture2D pixelTexture, Vector2 center, Vector2 startPoint, Vector2 endPoint, Color color, int thickness)
-        {
-            // Calculate distances from center to both points and use the maximum as radius
-            float radiusToStart = Vector2.Distance(center, startPoint);
-            float radiusToEnd = Vector2.Distance(center, endPoint);
-            float radius = Math.Max(radiusToStart, radiusToEnd);
-            
-            // Calculate angles for start and end points
-            float startAngle = (float)Math.Atan2(startPoint.Y - center.Y, startPoint.X - center.X);
-            float endAngle = (float)Math.Atan2(endPoint.Y - center.Y, endPoint.X - center.X);
-            
-            // Always go from left to right (counter-clockwise direction)
-            // Normalize to ensure we go the correct direction
-            if (endAngle < startAngle)
-            {
-                endAngle += (float)(2 * Math.PI);
-            }
-            
-            float angleDiff = endAngle - startAngle;
-            
-            // Draw the arc with small angle increments
-            float angleStep = 0.02f; // Small step for smooth arc
-            int steps = (int)(angleDiff / angleStep);
-            
-            if (steps < 2) return; // Too small to draw
-            
-            Vector2 prevPoint = center + new Vector2(
-                (float)(Math.Cos(startAngle) * radius),
-                (float)(Math.Sin(startAngle) * radius)
-            );
-            
-            for (int i = 1; i <= steps; i++)
-            {
-                float t = (float)i / steps;
-                float currentAngle = startAngle + angleDiff * t;
-                
-                Vector2 currentPoint = center + new Vector2(
-                    (float)(Math.Cos(currentAngle) * radius),
-                    (float)(Math.Sin(currentAngle) * radius)
-                );
-                
-                // Draw line segment with specified thickness
-                DrawLine(spriteBatch, pixelTexture, prevPoint, currentPoint, color, thickness);
-                prevPoint = currentPoint;
-            }
-        }
-        
-        private bool IsCellVisibleInCone(int cellX, int cellY)
-        {
-            if (visibilityCone == null || !visibilityCone.IsActive)
-                return false;
-            
-            // Get cone points
-            Vector2 focusPoint = visibilityCone.GetPoint(0, cameraOffset);
-            Vector2 leftPoint = visibilityCone.GetPoint(1, cameraOffset);
-            Vector2 rightPoint = visibilityCone.GetPoint(2, cameraOffset);
-            
-            // Calculate distances and use maximum radius
-            float radiusToLeft = Vector2.Distance(focusPoint, leftPoint);
-            float radiusToRight = Vector2.Distance(focusPoint, rightPoint);
-            float maxRadius = Math.Max(radiusToLeft, radiusToRight);
-            
-            // Calculate angles for arc boundaries
-            float leftAngle = (float)Math.Atan2(leftPoint.Y - focusPoint.Y, leftPoint.X - focusPoint.X);
-            float rightAngle = (float)Math.Atan2(rightPoint.Y - focusPoint.Y, rightPoint.X - focusPoint.X);
-            
-            // Normalize angles to ensure proper arc checking
-            if (rightAngle < leftAngle)
-                rightAngle += (float)(2 * Math.PI);
-            
-            // Get all four corners of the cell in world coordinates
-            Vector2 topLeft = new Vector2(
-                cellX * grid.CellSizeX + cameraOffset.X,
-                cellY * grid.CellSizeY + cameraOffset.Y
-            );
-            Vector2 topRight = new Vector2(
-                cellX * grid.CellSizeX + grid.CellSizeX + cameraOffset.X,
-                cellY * grid.CellSizeY + cameraOffset.Y
-            );
-            Vector2 bottomLeft = new Vector2(
-                cellX * grid.CellSizeX + cameraOffset.X,
-                cellY * grid.CellSizeY + grid.CellSizeY + cameraOffset.Y
-            );
-            Vector2 bottomRight = new Vector2(
-                cellX * grid.CellSizeX + grid.CellSizeX + cameraOffset.X,
-                cellY * grid.CellSizeY + grid.CellSizeY + cameraOffset.Y
-            );
-            
-            // Check if ALL four corners are within the arc
-            Vector2[] corners = { topLeft, topRight, bottomLeft, bottomRight };
-            
-            foreach (Vector2 corner in corners)
-            {
-                // Check if corner is within the max radius
-                float distanceToCorner = Vector2.Distance(focusPoint, corner);
-                if (distanceToCorner > maxRadius)
-                    return false;
-                
-                // Check if corner angle is within the arc
-                float cornerAngle = (float)Math.Atan2(corner.Y - focusPoint.Y, corner.X - focusPoint.X);
-                
-                // Normalize corner angle
-                if (cornerAngle < leftAngle)
-                    cornerAngle += (float)(2 * Math.PI);
-                    
-                // If any corner is outside the arc, the cell is not completely visible
-                if (cornerAngle < leftAngle || cornerAngle > rightAngle)
-                    return false;
-            }
-            
-            // Check line of sight to the cell center
-            Vector2 cellCenter = new Vector2(
-                cellX * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
-                cellY * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y
-            );
-            
-            // If there's no clear line of sight to the cell center, it's not visible
-            if (!HasLineOfSight(focusPoint, cellCenter))
-                return false;
-            
-            // Check if any shadow lines intersect with this cell
-            Vector2 cellTopLeft = new Vector2(
-                cellX * grid.CellSizeX + cameraOffset.X,
-                cellY * grid.CellSizeY + cameraOffset.Y
-            );
-            Vector2 cellBottomRight = cellTopLeft + new Vector2(grid.CellSizeX, grid.CellSizeY);
-            
-            foreach (ShadowLine shadowLine in currentShadowLines)
-            {
-                if (LineIntersectsRectangle(shadowLine.Start, shadowLine.End, cellTopLeft, cellBottomRight))
-                {
-                    return false; // Cell is intersected by a shadow line, so it's not completely visible
-                }
-            }
-            
-            // All corners are within the arc and radius, line of sight is clear, and no shadow intersections
-            return true;
-        }
-        
-        private bool HasLineOfSight(Vector2 from, Vector2 to)
-        {
-            // Convert world coordinates to grid coordinates for line traversal
-            Vector2 fromGrid = new Vector2(
-                (from.X - cameraOffset.X) / grid.CellSizeX,
-                (from.Y - cameraOffset.Y) / grid.CellSizeY
-            );
-            Vector2 toGrid = new Vector2(
-                (to.X - cameraOffset.X) / grid.CellSizeX,
-                (to.Y - cameraOffset.Y) / grid.CellSizeY
-            );
-            
-            // Use DDA (Digital Differential Analyzer) algorithm to traverse the grid
-            float dx = Math.Abs(toGrid.X - fromGrid.X);
-            float dy = Math.Abs(toGrid.Y - fromGrid.Y);
-            
-            int x = (int)Math.Floor(fromGrid.X);
-            int y = (int)Math.Floor(fromGrid.Y);
-            
-            int stepX = fromGrid.X < toGrid.X ? 1 : -1;
-            int stepY = fromGrid.Y < toGrid.Y ? 1 : -1;
-            
-            float deltaX = dx == 0 ? float.MaxValue : 1.0f / dx;
-            float deltaY = dy == 0 ? float.MaxValue : 1.0f / dy;
-            
-            float nextX = dx == 0 ? float.MaxValue : deltaX * (stepX > 0 ? 1.0f - (fromGrid.X - (float)Math.Floor(fromGrid.X)) : fromGrid.X - (float)Math.Floor(fromGrid.X));
-            float nextY = dy == 0 ? float.MaxValue : deltaY * (stepY > 0 ? 1.0f - (fromGrid.Y - (float)Math.Floor(fromGrid.Y)) : fromGrid.Y - (float)Math.Floor(fromGrid.Y));
-            
-            int endX = (int)Math.Floor(toGrid.X);
-            int endY = (int)Math.Floor(toGrid.Y);
-            
-            // Skip the starting cell (focus point cell)
-            bool skipFirst = true;
-            
-            while (x != endX || y != endY)
-            {
-                // Check current cell for blocking (but skip the first one)
-                if (!skipFirst)
-                {
-                    GridCell cell = grid.GetCell(x, y);
-                    if (cell != null && cell.Blocked)
-                    {
-                        return false; // Line is blocked
-                    }
-                }
-                skipFirst = false;
-                
-                // Move to next cell
-                if (nextX < nextY)
-                {
-                    nextX += deltaX;
-                    x += stepX;
-                }
-                else
-                {
-                    nextY += deltaY;
-                    y += stepY;
-                }
-            }
-            
-            // Check the final cell (destination)
-            GridCell finalCell = grid.GetCell(endX, endY);
-            if (finalCell != null && finalCell.Blocked)
-            {
-                return false;
-            }
-            
-            return true; // Line of sight is clear
-        }
-        
-        private List<Vector2> GetBlockedCellsInCone()
-        {
-            List<Vector2> blockedCells = new List<Vector2>();
-            
-            if (visibilityCone == null || !visibilityCone.IsActive)
-                return blockedCells;
-            
-            // Get cone parameters
-            Vector2 focusPoint = visibilityCone.GetPoint(0, cameraOffset);
-            Vector2 leftPoint = visibilityCone.GetPoint(1, cameraOffset);
-            Vector2 rightPoint = visibilityCone.GetPoint(2, cameraOffset);
-            
-            float radiusToLeft = Vector2.Distance(focusPoint, leftPoint);
-            float radiusToRight = Vector2.Distance(focusPoint, rightPoint);
-            float maxRadius = Math.Max(radiusToLeft, radiusToRight);
-            
-            float leftAngle = (float)Math.Atan2(leftPoint.Y - focusPoint.Y, leftPoint.X - focusPoint.X);
-            float rightAngle = (float)Math.Atan2(rightPoint.Y - focusPoint.Y, rightPoint.X - focusPoint.X);
-            
-            if (rightAngle < leftAngle)
-                rightAngle += (float)(2 * Math.PI);
-            
-            // Check all cells in grid
-            for (int x = 0; x < grid.Width; x++)
-            {
-                for (int y = 0; y < grid.Height; y++)
-                {
-                    GridCell cell = grid.GetCell(x, y);
-                    if (cell != null && cell.Blocked)
-                    {
-                        // Get cell center
-                        Vector2 cellCenter = new Vector2(
-                            x * grid.CellSizeX + grid.CellSizeX / 2 + cameraOffset.X,
-                            y * grid.CellSizeY + grid.CellSizeY / 2 + cameraOffset.Y
-                        );
-                        
-                        // Check if cell is within cone radius
-                        float distance = Vector2.Distance(focusPoint, cellCenter);
-                        if (distance > maxRadius)
-                            continue;
-                        
-                        // Check if cell is within cone angle
-                        float cellAngle = (float)Math.Atan2(cellCenter.Y - focusPoint.Y, cellCenter.X - focusPoint.X);
-                        if (cellAngle < leftAngle)
-                            cellAngle += (float)(2 * Math.PI);
-                        
-                        if (cellAngle >= leftAngle && cellAngle <= rightAngle)
-                        {
-                            // Check if there's line of sight from focus to this blocked cell
-                            if (HasLineOfSight(focusPoint, cellCenter))
-                            {
-                                blockedCells.Add(new Vector2(x, y));
-                            }
-                        }
-                    }
-                }
-            }
-            
-            return blockedCells;
-        }
-        
-        private void DrawShadowLines(SpriteBatch spriteBatch, Texture2D pixelTexture)
-        {
-            if (visibilityCone == null || !visibilityCone.IsActive)
-                return;
-            
-            Color shadowLineColor = new Color(20, 20, 20); // Very dark gray, almost black
-            
-            // Draw all calculated shadow lines
-            foreach (ShadowLine shadowLine in currentShadowLines)
-            {
-                DrawLine(spriteBatch, pixelTexture, shadowLine.Start, shadowLine.End, shadowLineColor, 2);
-            }
-        }
-        
-        private void CalculateShadowLines()
-        {
-            // Clear previous shadow lines
-            currentShadowLines.Clear();
-            
-            if (visibilityCone == null || !visibilityCone.IsActive)
-                return;
-            
-            Vector2 focusPoint = visibilityCone.GetPoint(0, cameraOffset);
-            Vector2 leftPoint = visibilityCone.GetPoint(1, cameraOffset);
-            Vector2 rightPoint = visibilityCone.GetPoint(2, cameraOffset);
-            
-            // Calculate cone parameters for filtering
-            float radiusToLeft = Vector2.Distance(focusPoint, leftPoint);
-            float radiusToRight = Vector2.Distance(focusPoint, rightPoint);
-            float maxRadius = Math.Max(radiusToLeft, radiusToRight);
-            
-            float leftAngle = (float)Math.Atan2(leftPoint.Y - focusPoint.Y, leftPoint.X - focusPoint.X);
-            float rightAngle = (float)Math.Atan2(rightPoint.Y - focusPoint.Y, rightPoint.X - focusPoint.X);
-            if (rightAngle < leftAngle) rightAngle += (float)(2 * Math.PI);
-            
-            // Process blocked cells to generate shadow lines
-            for (int x = 0; x < grid.Width; x++)
-            {
-                for (int y = 0; y < grid.Height; y++)
-                {
-                    GridCell cell = grid.GetCell(x, y);
-                    if (cell != null && cell.Blocked)
-                    {
-                        // Get blocked cell bounds
-                        Vector2 cellTopLeft = new Vector2(x * grid.CellSizeX + cameraOffset.X, y * grid.CellSizeY + cameraOffset.Y);
-                        Vector2 cellCenter = cellTopLeft + new Vector2(grid.CellSizeX / 2, grid.CellSizeY / 2);
-                        
-                        // Filter: Check if cell is within cone radius
-                        float distToCell = Vector2.Distance(focusPoint, cellCenter);
-                        if (distToCell > maxRadius)
-                            continue;
-                        
-                        // Filter: Check if cell is within cone angle
-                        float cellAngle = (float)Math.Atan2(cellCenter.Y - focusPoint.Y, cellCenter.X - focusPoint.X);
-                        if (cellAngle < leftAngle) cellAngle += (float)(2 * Math.PI);
-                        if (cellAngle < leftAngle || cellAngle > rightAngle)
-                            continue;
-                        
-                        // Calculate proper shadow casting corners (using your logic)
-                        Vector2 toCell = cellCenter - focusPoint;
-                        
-                        // Define all four corners
-                        Vector2 topLeft = cellTopLeft;
-                        Vector2 topRight = cellTopLeft + new Vector2(grid.CellSizeX, 0);
-                        Vector2 bottomLeft = cellTopLeft + new Vector2(0, grid.CellSizeY);
-                        Vector2 bottomRight = cellTopLeft + new Vector2(grid.CellSizeX, grid.CellSizeY);
-                        
-                        Vector2 shadowCastPoint1, shadowCastPoint2;
-
-                        // Using your corrected shadow point logic
-                        if (toCell.X == 0) {
-                            if (toCell.Y > 0) {
-                                shadowCastPoint1 = bottomRight;
-                                shadowCastPoint2 = bottomLeft;
-                            }
-                            else {
-                                shadowCastPoint1 = topRight;
-                                shadowCastPoint2 = topLeft;
-                            }
-                        } else if (toCell.Y == 0) {
-                            if (toCell.X > 0) {
-                                shadowCastPoint1 = topLeft;
-                                shadowCastPoint2 = bottomLeft;
-                            }
-                            else {
-                                shadowCastPoint1 = topRight;
-                                shadowCastPoint2 = bottomRight;
-                            }
-                        } 
-                        else if (toCell.X > 0 && toCell.Y > 0) {
-                            shadowCastPoint1 = topRight;
-                            shadowCastPoint2 = bottomLeft;
-                        }
-                        else if (toCell.X < 0 && toCell.Y > 0) {
-                            shadowCastPoint1 = topLeft;
-                            shadowCastPoint2 = bottomRight;
-                        }
-                        else if (toCell.X > 0 && toCell.Y < 0) {
-                            shadowCastPoint1 = bottomRight;
-                            shadowCastPoint2 = topLeft;
-                        }
-                        else {
-                            shadowCastPoint1 = bottomLeft;
-                            shadowCastPoint2 = topRight;
-                        }
-                        
-                        // Calculate shadow endpoints
-                        Vector2 direction1 = Vector2.Normalize(shadowCastPoint1 - focusPoint);
-                        Vector2 direction2 = Vector2.Normalize(shadowCastPoint2 - focusPoint);
-                        
-                        Vector2 shadowEnd1 = focusPoint + direction1 * maxRadius;
-                        Vector2 shadowEnd2 = focusPoint + direction2 * maxRadius;
-                        
-                        // Store shadow lines for visibility checking
-                        currentShadowLines.Add(new ShadowLine(shadowCastPoint1, shadowEnd1));
-                        currentShadowLines.Add(new ShadowLine(shadowCastPoint2, shadowEnd2));
-                    }
-                }
-            }
-        }
-        
-        private bool LineIntersectsRectangle(Vector2 lineStart, Vector2 lineEnd, Vector2 rectTopLeft, Vector2 rectBottomRight)
-        {
-            // Check if line intersects with any of the four rectangle edges
-            Vector2 rectTopRight = new Vector2(rectBottomRight.X, rectTopLeft.Y);
-            Vector2 rectBottomLeft = new Vector2(rectTopLeft.X, rectBottomRight.Y);
-            
-            return LineIntersectsLine(lineStart, lineEnd, rectTopLeft, rectTopRight) ||      // Top edge
-                   LineIntersectsLine(lineStart, lineEnd, rectTopRight, rectBottomRight) || // Right edge
-                   LineIntersectsLine(lineStart, lineEnd, rectBottomRight, rectBottomLeft) || // Bottom edge
-                   LineIntersectsLine(lineStart, lineEnd, rectBottomLeft, rectTopLeft);      // Left edge
-        }
-        
-        private bool LineIntersectsLine(Vector2 p1, Vector2 p2, Vector2 p3, Vector2 p4)
-        {
-            // Line intersection using parametric form
-            float denom = (p1.X - p2.X) * (p3.Y - p4.Y) - (p1.Y - p2.Y) * (p3.X - p4.X);
-            
-            if (Math.Abs(denom) < 1e-10) // Lines are parallel
-                return false;
-            
-            float t = ((p1.X - p3.X) * (p3.Y - p4.Y) - (p1.Y - p3.Y) * (p3.X - p4.X)) / denom;
-            float u = -((p1.X - p2.X) * (p1.Y - p3.Y) - (p1.Y - p2.Y) * (p1.X - p3.X)) / denom;
-            
-            return t >= 0 && t <= 1 && u >= 0 && u <= 1;
-        }
-        
         private void DrawControlsWindow(SpriteBatch spriteBatch, Texture2D pixelTexture)
         {
             // Position window under the cell info window
@@ -1293,7 +736,6 @@ namespace GridDisplay
             yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "T - Set Target Cell", windowX + 10, yPos, Color.Blue);
             yPos += lineHeight;
-            DrawPixelText(spriteBatch, pixelTexture, "V - Toggle Visibility Cone", windowX + 10, yPos, new Color(75, 0, 130));
             yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "Arrow Keys - Move Camera", windowX + 10, yPos, Color.White);
             yPos += lineHeight;
@@ -1323,7 +765,6 @@ namespace GridDisplay
             yPos += lineHeight;
             DrawPixelText(spriteBatch, pixelTexture, "Black Line - Start to Target", windowX + 10, yPos, Color.White);
             yPos += lineHeight;
-            DrawPixelText(spriteBatch, pixelTexture, "Purple Cone - Visibility", windowX + 10, yPos, new Color(75, 0, 130));
         }
         
         private Vector2 ScreenToWorld(Vector2 screenPosition)
