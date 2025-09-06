@@ -8,7 +8,7 @@ But cells behind X are not. So the visibility has to be calculated using simple 
 V is on x:12 and y:10. 
 
 Right side border:
-The right-side visibility limit is is on 13:15.  That makes a difference of 1:5.
+The right-side visibility limit is based off 13:15.  That makes a difference of 1:5.
 12:10 - 13: 15  = 1:5
 next step: 13:15 + 1:5 = 14:20  (for implementation, use interpolation, so 12:10 + 2*(1:5) = 14:20)
 Another step is on 15:25
@@ -19,9 +19,29 @@ Left side border:
 
 Obviously, left border guards leftest visible cells, while right border rightest.
 
+Let's define some shortcuts for further context:
+UL: Up-left  relative position ( -1X, -1Y)
+DL: Down-left  relative position ( -1X, +1Y)
+UR: Up-right  relative position ( +1X, -1Y)
+DR: Down-right relative position ( +1X, +1Y)
 
 Cells marked with !  are thus not visible from V. Test this
 Cells marked with ~ are also not visible V. I'm just marking them specially, because an incorrect program might include them into visible.
+
+
+Comparing 2D position, V is placed higher and more to left, compared to X.
+- UL of X position is clearly visible and not used for anything
+- UR of X is used as base for the left border calculation 
+- DR of X is completely hidden to V, so ignored
+- DL is used as base fot he right border calculation
+
+
+Implemetation details:
+scan the grid one row after another. On each row, calculate right and left border. They can also be unconstrained, if 
+no obstacle was hit (e.g on row 11).
+But when the row is split by obstacle, do not attempt to calculated the visiblity for both cones at once:  divide them . 
+EG: visibility of row 16 is described by (X: 0...13  and 18...25). Both cones have to be calculated independantly of 
+each other. They could even further split (on more complex grid).
 
 
   
