@@ -58,7 +58,7 @@ namespace GridDisplay
             expectedInvisible.Add((18, 19));
             expectedInvisible.Add((19, 19));
             expectedInvisible.Add((20, 19));
-            expectedInvisible.Add((14, 20));
+            // Note: (14,20) is on right border so should be visible
             expectedInvisible.Add((15, 20));
             expectedInvisible.Add((16, 20));
             expectedInvisible.Add((17, 20));
@@ -102,7 +102,7 @@ namespace GridDisplay
             expectedInvisible.Add((22, 24));
             expectedInvisible.Add((23, 24));
             expectedInvisible.Add((24, 24));
-            expectedInvisible.Add((15, 25));
+            // Note: (15,25) is on right border so should be visible
             expectedInvisible.Add((16, 25));
             expectedInvisible.Add((17, 25));
             expectedInvisible.Add((18, 25));
@@ -159,6 +159,20 @@ namespace GridDisplay
                 Console.WriteLine();
             }
             
+            Console.WriteLine("\nBorder cells should be visible:");
+            CheckExpectedVisible(13, 15, visibilityMap, "Right border starting cell");
+            CheckExpectedVisible(15, 13, visibilityMap, "Left border starting cell");
+            
+            Console.WriteLine("\nBorder progression cells should be visible:");
+            // Right border progression: (13,15) + n*(1,5)
+            CheckExpectedVisible(14, 20, visibilityMap, "Right border at (14,20)");
+            CheckExpectedVisible(15, 25, visibilityMap, "Right border at (15,25)");
+            
+            // Left border progression: (15,13) + n*(3,3)
+            CheckExpectedVisible(18, 16, visibilityMap, "Left border at (18,16)");
+            CheckExpectedVisible(21, 19, visibilityMap, "Left border at (21,19)");
+            CheckExpectedVisible(24, 22, visibilityMap, "Left border at (24,22)");
+            
             Console.WriteLine("\nExpected non-visible cells based on case1.txt:");
             CheckExpectedInvisible(15, 14, visibilityMap, "Right of obstacle");
             CheckExpectedInvisible(14, 15, visibilityMap, "Below obstacle");
@@ -197,6 +211,13 @@ namespace GridDisplay
                 headers[i] = $"{i,2}";
             }
             return headers;
+        }
+        
+        private static void CheckExpectedVisible(int x, int y, bool[,] visibilityMap, string description)
+        {
+            bool isVisible = visibilityMap[x, y];
+            string status = isVisible ? "PASS" : "FAIL";
+            Console.WriteLine($"  [{status}] Cell ({x},{y}) should be visible - {description}: {isVisible}");
         }
         
         private static void CheckExpectedInvisible(int x, int y, bool[,] visibilityMap, string description)

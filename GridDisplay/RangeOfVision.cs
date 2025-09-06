@@ -91,13 +91,25 @@ namespace GridDisplay
             if ((dy > 0) != (cone.LeftBorderDiff.Y > 0))
                 return false;
             
-            float xAtY = viewerPosition.X + (cone.LeftBorderDiff.X * dy / cone.LeftBorderDiff.Y);
-            float xAtYRight = viewerPosition.X + (cone.RightBorderDiff.X * dy / cone.RightBorderDiff.Y);
+            // All border progression cells should be visible
+            // The shadow is what's BETWEEN the borders, not ON the borders
             
-            float minX = Math.Min(xAtY, xAtYRight);
-            float maxX = Math.Max(xAtY, xAtYRight);
+            // Check if this cell lies exactly on either border line
+            float xAtYLeft = viewerPosition.X + (cone.LeftBorderDiff.X * (float)dy / cone.LeftBorderDiff.Y);
+            float xAtYRight = viewerPosition.X + (cone.RightBorderDiff.X * (float)dy / cone.RightBorderDiff.Y);
             
-            return x >= minX && x <= maxX;
+            // If the cell is exactly on a border line (within tolerance), it's visible
+            const float tolerance = 0.001f;
+            if (Math.Abs(x - xAtYLeft) < tolerance || Math.Abs(x - xAtYRight) < tolerance)
+            {
+                return false; // Border cells are visible
+            }
+            
+            float minX = Math.Min(xAtYLeft, xAtYRight);
+            float maxX = Math.Max(xAtYLeft, xAtYRight);
+            
+            // Only cells strictly within the shadow cone are blocked
+            return x > minX + tolerance && x < maxX - tolerance;
         }
         
         private ShadowCone CreateShadowCone(int obstacleX, int obstacleY)
